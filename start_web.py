@@ -9,6 +9,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-s', '--serial', help="Phone's serial number", default=None)
 parser.add_argument('-i', '--interval', help='Time interval between screencap',
                     type=float, default=0.5)
+parser.add_argument('-p', '--port', help='Web server port',
+                    type=int, default=5000)
 
 def create_app():
   """Get command line args and create objects"""
@@ -69,5 +71,5 @@ if __name__ == '__main__':
     print('ADB screencap thread failed to start.')
   else:
     print('ADB screencap thread started.')
-    print('Web server started at http://127.0.0.1:5000')
-    app.run()
+    print('Web server started at http://localhost:%d' % parser.parse_args().port)
+    app.run(host='0.0.0.0', port=parser.parse_args().port)
