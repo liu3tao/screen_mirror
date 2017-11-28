@@ -9,17 +9,28 @@ class device_mirror(object):
     self.serial = serial  # phone's serial number
     self.interval = interval  # interval between screencap.
     self.adb = adb.AdbProxy(serial)
-    self.screencap_cmd = 'screencap -p'
+    self.screencap_cmd = 'screencap -p '
     self.screencap_buffer = None
     self.screencap_timestamp = 0
     self.is_capturing = False
     self._lock = RLock()
+    self._local_file = '/tmp/screencap.png'
+    self._remote_file = '/data/local/tmp/screencap.png'
+
+  def _take_screencap(self):
+    cmd = self.screencap_cmd + self._remote_file
+    self.adb.shell(cmd)
+    self.adb.pull([self._remote_file, self._local_file])
+    img = None
+    with open(self._local_file, 'rb') as f:
+      img = f.read()
+    return img
 
   def _screencap_thread_func(self):
     self.is_capturing = True
     while self.is_capturing:
       try:
-        cap = self.adb.shell(self.screencap_cmd)
+        cap = self._take_screencap()
         if cap:
           # update screen buffer
           self._lock.acquire()
