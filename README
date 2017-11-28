@@ -1,0 +1,12 @@
+A web based Android mirror with minimal dependency.
+
+To use: python start_web.py -s <Android device's serial>
+Visit http://<localhost IP>:5000 to see the device screen.
+
+Known issues:
+
+- Sometime the screencap thread failed to start. Restart the program usually
+  fix the problem.
+
+- Slow screen update. For Watch devices, it might take up 10 seconds to refresh.
+

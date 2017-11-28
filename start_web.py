@@ -1,6 +1,6 @@
 
 
-import time
+import sys, time
 import argparse
 import flask
 from device_mirror import device_mirror
@@ -65,11 +65,18 @@ if __name__ == '__main__':
   print('Starting adb screen cap thread...')
   dm.run()
   # wait till first screen cap is ready
+  start_time = time.time()
   while dm.is_capturing and dm.get_screencap_timestamp() == 0:
+    if time.time() > start_time + 30:
+      break  # don't wait after 30 seconds.
     time.sleep(0.5)
+
   if not dm.is_capturing:
     print('ADB screencap thread failed to start.')
+    sys.exit()
   else:
     print('ADB screencap thread started.')
     print('Web server started at http://localhost:%d' % parser.parse_args().port)
+    print('Press Ctrl+C to stop the program.')
     app.run(host='0.0.0.0', port=parser.parse_args().port)
+
