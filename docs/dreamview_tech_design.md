@@ -1,13 +1,12 @@
 # 窗景找房：技术设计文档 v0.10
 
-- 状态：v0.10 已批准；阶段 0 进行中（待 H0-1、H0-3）
+- 状态：v0.10 已批准；阶段 0 进行中（待 H0-1）
 - 定位：单人业余项目。能用文件不用数据库；能用云端开关不自己写计费；前端单页。
 - 平台：macOS · Python 3.11+ · Chrome（运行）；Claude Code 云端会话（开发）
-- 上游需求：`docs/dream_view_search_spec.md` v1.0（**待提交**，见 H0-3；原链接为本机 `file://` 路径，他人不可访问）
 - 外部服务：Gemini API（付费层，含 Google Search grounding）；图片搜索 `ddgs`（默认）/ Brave（M1 实测对比）
 - v0.8 变更（用户决策，附录 D）：删除飞行时长；地区偏好系数改为「搜索范围」前置多选；排序只用视觉分；地区可多选
 - v0.9 变更（第四轮审计，附录 E/F）：通用关键词默认关；按地区设搜索语言/国家参数；grounding 解析失败兜底；提示词独立文件；新增 Claude 对比与结论
-- v0.10 变更（第五轮审计，附录 G）：**[阻断] 显式设置 `media_resolution`**（Gemini 3 默认每图 1,120 token，非 300）；**[阻断] 思考配置改为 `thinking_level`，费用表补输出 token 列并重算**；上游需求链接改为仓库内路径；开发环境改为 Claude Code 云端会话并补充其限制；第 7 节按开发阶段重写人工事项
+- v0.10 变更（第五轮审计，附录 G）：**[阻断] 显式设置 `media_resolution`**（Gemini 3 默认每图 1,120 token，非 300）；**[阻断] 思考配置改为 `thinking_level`，费用表补输出 token 列并重算**；删除上游需求文档引用（本文第 1 节即目标）；开发环境改为 Claude Code 云端会话并补充其限制；第 7 节按开发阶段重写人工事项
 
 ---
 
@@ -80,7 +79,7 @@ dreamview/
   extension/  manifest.json  popup.html  popup.js  content.js
   runs/<run_id>/  ref.jpg  scene.json  regions.json  results.json  thumbs/  run.log   # .gitignore
   eval/  log.md          # 仓库公开：参考图只存本机 eval/，已 .gitignore
-  docs/  dream_view_search_spec.md  dreamview_tech_design.md
+  docs/  dreamview_tech_design.md
 ```
 
 ### 3.2 UI（单页三步）
@@ -286,7 +285,7 @@ flowchart TD
 ### 阶段 0：开工前（云端，≤ 2026-10-07）
 - H0-1：领取 Claude 云端会话额度（截止 10-07，11-04 过期）。途径：打开 claude.ai/code 的领取提示，或公告链接 `claude.ai/code/claim-credit/10`，或本机 Claude Code CLI 执行 `/claim-credit`（云端会话与 Web 端无此命令；本机需较新版本 CLI）。核对：claude.ai 设置 → Usage。
 - H0-2：✅ 已批准 v0.10。
-- H0-3：把上游需求 `dream_view_search_spec.md` 原文交给 Claude（粘贴或上传），由 Claude 提交到 `docs/`。原文在本机 `~/.gemini/...` 目录，云端无法读取。
+- H0-3：✅ 取消。不需要上游需求文档，本文第 1 节即目标。
 - H0-4：✅ 沿用 `liu3tao/screen_mirror`；旧文件已删除。
 - H0-5：✅ 仓库公开；参考图不入库，`eval/` 只跟踪 `log.md`。
 
@@ -395,7 +394,7 @@ flowchart TD
 |---|---|---|
 | 每图 300 token 的假设只在 `media_resolution=low` 成立；Gemini 3 默认 1,120 | 阻断 | 3.5 按步骤显式设档；2.2 加 token 校验与警告；4.3 重算；风险表新增 |
 | 「思考预算最低档」不适用 Gemini 3；费用表无输出 token | 阻断 | 改用 `thinking_level`；4.3 拆输入 / 输出列，总价 0.25 → 0.31 USD |
-| 上游需求链接为本机 `file://` 路径 | 一般 | 改为 `docs/` 内路径，H0-3 提交 |
+| 上游需求链接为本机 `file://` 路径 | 一般 | 删除引用；本文第 1 节即目标 |
 | 云端会话无法访问图片搜索站点；数据中心 IP 不适合做 ddgs/Brave 对比 | 一般 | 新增 3.11；H6 可选放行；H14 必须本机 |
 | 附录 E「据报道底层为 Brave 索引」未经核实 | 一般 | 删除 |
 | Claude 云端额度条款「据多方来源」 | 一般 | 已核实，改为确定表述 |
