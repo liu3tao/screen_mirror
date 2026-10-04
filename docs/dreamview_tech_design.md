@@ -1,6 +1,6 @@
 # 窗景找房：技术设计文档 v0.10
 
-- 状态：评审中（v0.10 修正两处阻断项，待用户确认后进入 M1）
+- 状态：v0.10 已批准；阶段 0 进行中（待 H0-1、H0-3）
 - 定位：单人业余项目。能用文件不用数据库；能用云端开关不自己写计费；前端单页。
 - 平台：macOS · Python 3.11+ · Chrome（运行）；Claude Code 云端会话（开发）
 - 上游需求：`docs/dream_view_search_spec.md` v1.0（**待提交**，见 H0-3；原链接为本机 `file://` 路径，他人不可访问）
@@ -79,7 +79,7 @@ dreamview/
               prompts/  analyze.md  regions.md  score.md  audit.md   # 提示词独立文件，改提示词不改代码
   extension/  manifest.json  popup.html  popup.js  content.js
   runs/<run_id>/  ref.jpg  scene.json  regions.json  results.json  thumbs/  run.log   # .gitignore
-  eval/  ref_2.jpg  ref_3.jpg  log.md
+  eval/  log.md          # 仓库公开：参考图只存本机 eval/，已 .gitignore
   docs/  dream_view_search_spec.md  dreamview_tech_design.md
 ```
 
@@ -284,11 +284,11 @@ flowchart TD
 ## 7. 需要人工完成的事项（按开发阶段；v0.10 重写）
 
 ### 阶段 0：开工前（云端，≤ 2026-10-07）
-- H0-1：确认 Claude 云端会话额度已领取（`/claim-credit`，截止 10-07，11-04 过期）。
-- H0-2：评审并批准本文 v0.10。
-- H0-3：把上游需求 `dream_view_search_spec.md` 提交到 `docs/`。
-- H0-4：确认仓库：沿用 `liu3tao/screen_mirror`（清空旧文件重建）或新建仓库（新仓库需在 Claude GitHub App 中授权）。
-- H0-5：确认仓库可见性；若公开，参考图与 `eval/` 图片不入库，改为本机保存。
+- H0-1：领取 Claude 云端会话额度（截止 10-07，11-04 过期）。途径：打开 claude.ai/code 的领取提示，或公告链接 `claude.ai/code/claim-credit/10`，或本机 Claude Code CLI 执行 `/claim-credit`（云端会话与 Web 端无此命令；本机需较新版本 CLI）。核对：claude.ai 设置 → Usage。
+- H0-2：✅ 已批准 v0.10。
+- H0-3：把上游需求 `dream_view_search_spec.md` 原文交给 Claude（粘贴或上传），由 Claude 提交到 `docs/`。原文在本机 `~/.gemini/...` 目录，云端无法读取。
+- H0-4：✅ 沿用 `liu3tao/screen_mirror`；旧文件已删除。
+- H0-5：✅ 仓库公开；参考图不入库，`eval/` 只跟踪 `log.md`。
 
 ### 阶段 1：账号与密钥（M1 编码开始前，约 40 min）
 - H1：developers.google.com/program → My benefits → 激活 AI Pro 每月 Cloud 额度 → 关联账单账户。
@@ -298,7 +298,7 @@ flowchart TD
 - H5：云端环境设置 → Environment secrets 加入 `GEMINI_API_KEY`（及可选 `BRAVE_API_KEY`）。
 - H6（可选）：云端环境设置 → Network access → Custom，加 `duckduckgo.com`、`*.duckduckgo.com`、`*.mm.bing.net`、`api.search.brave.com`，保留默认包管理器列表。不加则云端只用 fixture。
 - H7：确认 `config.py` 硬约束（整租、2 人、≤ 10k USD/月、≥ 28 晚）与搜索范围标签列表。
-- H8：准备 3 张参考图（用例 #1 + 2 张风格不同）；按 H0-5 决定入库或本机保存。
+- H8：准备 3 张参考图（用例 #1 + 2 张风格不同），存本机 `eval/`。云端测试用无版权的合成图或公开授权图作 fixture。
 
 ### 阶段 2：M1 编码（云端，Claude 执行）
 - H9：评审每个 PR / 提交；回答实现中的问题；合并。

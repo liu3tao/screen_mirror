@@ -1,4 +1,15 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
+.venv/
+
+# Secrets
+.env
+
+# Run data (local only)
+runs/
+
+# Eval images: repo is public, keep reference images local; only eval/log.md is tracked
+eval/*
+!eval/log.md
