@@ -74,10 +74,12 @@
 dreamview/
   pyproject.toml  .env.example
   dreamview/  app.py  config.py  gemini.py  search.py  images.py  scoring.py
+              schemas.py  store.py  pipeline.py      # 数据结构、run 目录读写、后台任务（M1 实现时拆出）
               static/  index.html  app.js  alpine.min.js  style.css
-              prompts/  analyze.md  regions.md  score.md  audit.md   # 提示词独立文件，改提示词不改代码
+              prompts/  analyze.md  regions.md  regions_json_fallback.md  score.md  audit.md   # 提示词独立文件，改提示词不改代码
   extension/  manifest.json  popup.html  popup.js  content.js
   runs/<run_id>/  ref.jpg  scene.json  regions.json  results.json  thumbs/  run.log   # .gitignore
+  tests/                 # pytest，不联网、不需要 API Key
   eval/  log.md          # 仓库公开：参考图只存本机 eval/，已 .gitignore
   docs/  dreamview_tech_design.md
 ```

@@ -1,0 +1,32 @@
+[project]
+name = "dreamview"
+version = "0.1.0"
+description = "窗景找房：按理想窗景找候选地区与房源图片"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "python-multipart>=0.0.9",
+    "google-genai>=1.50",
+    "ddgs>=9.0",
+    "httpx>=0.27",
+    "pillow>=10.0",
+    "pydantic>=2.7",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+dreamview = "dreamview.app:main"
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["dreamview"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
