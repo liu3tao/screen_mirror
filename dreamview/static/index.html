@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>窗景找房</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/style.css">
+  <script defer src="/static/app.js"></script>
+  <script defer src="/static/alpine.min.js"></script>
+</head>
+<body x-data="dreamview()" x-init="init()">
+
+<header class="topbar">
+  <strong>窗景找房</strong>
+  <select x-model="runId" @change="openRun(runId)" aria-label="历史 run">
+    <option value="">— 历史 run —</option>
+    <template x-for="r in runs" :key="r.id">
+      <option :value="r.id" x-text="`${r.created.replace('T', ' ')} · ${r.summary ? r.summary.slice(0, 24) : r.status}`"></option>
+    </template>
+  </select>
+  <button @click="newRun()">新建</button>
+  <span class="spacer"></span>
+  <template x-if="state"><span class="muted" x-text="usageText()"></span></template>
+</header>
+
+<div class="error" x-show="error" x-cloak>
+  <div x-text="error"></div>
+  <div class="hint" x-show="hint" x-text="'提示：' + hint"></div>
+  <button class="link" @click="error = ''; hint = ''">关闭</button>
+</div>
+<template x-for="w in (state?.warnings || [])" :key="w">
+  <div class="warning" x-text="w"></div>
+</template>
+
+<!-- ① 上传 -->
+<section class="step" x-show="!runId" x-cloak>
+  <h2>① 上传理想窗景图</h2>
+  <label class="dropzone" :class="{ over: dragOver }"
+         @dragover.prevent="dragOver = true" @dragleave="dragOver = false"
+         @drop.prevent="dragOver = false; upload($event.dataTransfer.files[0])">
+    <input type="file" accept="image/*" @change="upload($event.target.files[0])" hidden>
+    <span x-show="!busy.upload">拖入图片，或点击选择</span>
+    <span x-show="busy.upload">解析中…</span>
+  </label>
+</section>
+
+<template x-if="runId && scene">
+<div>
+<!-- ② 场景 + 地区 -->
+<section class="step two-col">
+  <div class="col">
+    <h2>② 场景</h2>
+    <img class="ref" :src="`/files/${runId}/ref.jpg`" alt="参考图">
+    <label>摘要<textarea rows="2" x-model="scene.summary"></textarea></label>
+    <table class="elements">
+      <thead><tr><th>核心要素</th><th>判断标准</th><th>权重</th><th></th></tr></thead>
+      <tbody>
+        <template x-for="(e, i) in scene.elements" :key="i">
+          <tr>
+            <td><input x-model="e.name" size="8"></td>
+            <td><input x-model="e.description"></td>
+            <td class="nowrap"><input type="range" min="0" max="1" step="0.1" x-model.number="e.weight"><span x-text="Number(e.weight).toFixed(1)"></span></td>
+            <td><button class="link" @click="scene.elements.splice(i, 1)">删</button></td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+    <button @click="scene.elements.push({ name: '', description: '', weight: 0.5 })">＋ 要素</button>
+    <label>通用关键词（每行一条，不含地名）
+      <textarea rows="4" :value="scene.keywords.join('\n')" @input="scene.keywords = lines($event.target.value)"></textarea>
+    </label>
+    <button @click="saveScene()" :disabled="busy.scene">保存场景</button>
+  </div>
+
+  <div class="col">
+    <label class="toggle"><input type="checkbox" x-model="scene.use_generic_keywords"> 启用通用关键词（关时只按地区关键词搜图）</label>
+    <h3>搜索范围</h3>
+    <div class="chips">
+      <template x-for="t in config.scope_tags" :key="t">
+        <label class="chip" :class="{ on: scopes.includes(t) }">
+          <input type="checkbox" :value="t" x-model="scopes" hidden><span x-text="t"></span>
+        </label>
+      </template>
+    </div>
+    <input placeholder="自由输入，如 云南、意大利南部（逗号分隔）" x-model="scopeFree">
+    <button class="primary" @click="findRegions()" :disabled="busy.regions" x-text="busy.regions ? '查找中…' : '找地区'"></button>
+
+    <template x-if="regions">
+      <div>
+        <div class="error" x-show="regions.parse_error" x-text="regions.parse_error"></div>
+        <div class="row">
+          <h3>候选地区</h3>
+          <button class="link" @click="setAll(true)">全选</button>
+          <button class="link" @click="setAll(false)">全不选</button>
+        </div>
+        <template x-for="(r, i) in regions.regions" :key="r.id">
+          <div class="region" :class="{ on: r.selected }">
+            <label class="row"><input type="checkbox" x-model="r.selected">
+              <strong x-text="r.city"></strong><span x-text="r.district"></span>
+              <span class="muted" x-show="r.months" x-text="'约 ' + r.months"></span>
+              <span class="tag" x-show="r.manual">手动</span>
+            </label>
+            <div class="muted" x-text="r.reason"></div>
+            <div class="row small">
+              <input class="grow" :value="r.keywords.join('，')" @change="r.keywords = splitList($event.target.value)" title="关键词（逗号分隔）">
+              <input size="6" x-model="r.search_region" title="搜索区域代码">
+              <button class="link" @click="regions.regions.splice(i, 1)">删</button>
+            </div>
+          </div>
+        </template>
+        <details class="manual">
+          <summary>手动加地区</summary>
+          <input placeholder="城市" x-model="manual.city">
+          <input placeholder="街区（可空）" x-model="manual.district">
+          <input placeholder="关键词，逗号分隔" x-model="manual.keywords">
+          <input placeholder="区域代码，如 cn-zh" x-model="manual.search_region" size="8">
+          <button @click="addManual()">添加</button>
+        </details>
+        <button @click="saveRegions()">保存地区</button>
+
+        <div class="grounding">
+          <div class="muted small">以下为 Google 搜索结果（grounding），原样展示</div>
+          <iframe class="suggestions" x-show="regions.search_suggestions_html" :srcdoc="regions.search_suggestions_html"
+                  sandbox="allow-popups allow-popups-to-escape-sandbox" title="Google Search Suggestions"></iframe>
+          <ol class="citations">
+            <template x-for="c in regions.citations" :key="c.uri">
+              <li><a :href="c.uri" target="_blank" rel="noopener" x-text="c.title || c.uri"></a></li>
+            </template>
+          </ol>
+          <details><summary>原始返回</summary><pre x-text="regions.raw_text"></pre></details>
+        </div>
+      </div>
+    </template>
+  </div>
+</section>
+
+<!-- ③ 照片墙 -->
+<section class="step">
+  <h2>③ 照片墙</h2>
+  <div class="row">
+    <button class="primary" @click="startSearch()" :disabled="isRunning()">搜图并打分</button>
+    <span class="muted" x-text="`已勾选 ${selectedCount()} 个地区，预计搜索 ${estimatedSearches()} 次`"></span>
+  </div>
+  <template x-if="state && state.status !== 'created' && state.status !== 'analyzed'">
+    <div>
+      <div class="progress"><div :style="`width:${Math.round((state.progress || 0) * 100)}%`"></div></div>
+      <div class="muted small" x-text="`${state.stage || state.status} · ${state.items.length} 张`"></div>
+      <details x-show="state.search_errors.length"><summary x-text="`${state.search_errors.length} 次搜索失败（已跳过）`"></summary>
+        <ul><template x-for="e in state.search_errors" :key="e"><li x-text="e"></li></template></ul>
+      </details>
+    </div>
+  </template>
+
+  <div class="filters" x-show="state && state.items.length">
+    <label>最低分 <input type="range" min="0" max="10" step="0.5" x-model.number="filter.min"><span x-text="filter.min"></span></label>
+    <span>地区：</span>
+    <template x-for="r in wallRegions()" :key="r">
+      <label class="chip" :class="{ on: filter.regions.includes(r) }"><input type="checkbox" :value="r" x-model="filter.regions" hidden><span x-text="r"></span></label>
+    </template>
+    <span>来源：</span>
+    <template x-for="t in ['房源', '种草帖', '其他']" :key="t">
+      <label class="chip" :class="{ on: filter.sources.includes(t) }"><input type="checkbox" :value="t" x-model="filter.sources" hidden><span x-text="t"></span></label>
+    </template>
+    <span class="muted" x-text="`显示 ${wall().length} 张`"></span>
+  </div>
+  <div class="muted small" x-show="state && state.items.length" x-text="`图片来自 ${config.image_search === 'brave' ? 'Brave' : 'DuckDuckGo'} 图片搜索，与上方 Google 结果无关`"></div>
+
+  <div class="wall">
+    <template x-for="it in wall()" :key="it.id">
+      <a class="card" :href="it.page_url" target="_blank" rel="noopener" :title="it.title">
+        <img :src="`/files/${runId}/${it.thumb_file}`" loading="lazy" alt="">
+        <div class="card-body">
+          <div class="row">
+            <span class="score" x-text="it.score === null ? (it.status === 'unscored' ? '未打分' : '…') : it.score.toFixed(1)"></span>
+            <span class="tag" x-text="`[${it.source_type}]`"></span>
+          </div>
+          <div class="small" x-text="it.region_label"></div>
+          <div class="small muted" x-text="Object.entries(it.scores).map(([k, v]) => `${k} ${v}`).join(' · ')"></div>
+        </div>
+      </a>
+    </template>
+  </div>
+</section>
+</div>
+</template>
+
+</body>
+</html>
