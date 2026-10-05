@@ -59,7 +59,12 @@ def _env(name: str, default: str) -> str:
 
 @dataclass
 class Settings:
+    model_backend: str = "gemini"  # gemini（AI Studio）| vertex | ollama
     gemini_api_key: str = ""
+    google_cloud_project: str = ""
+    google_cloud_location: str = "global"
+    ollama_url: str = "http://127.0.0.1:11434"
+    ollama_model: str = ""
     gemini_model: str = "gemini-3.5-flash-lite"
     gemini_model_strong: str = ""
     media_res_analyze: str = "high"
@@ -82,6 +87,10 @@ class Settings:
     port: int = 8765
 
     @property
+    def model_name(self) -> str:
+        return self.ollama_model if self.model_backend == "ollama" else self.gemini_model
+
+    @property
     def strong_model(self) -> str:
         return self.gemini_model_strong or self.gemini_model
 
@@ -89,7 +98,13 @@ class Settings:
     def from_env(cls) -> "Settings":
         load_dotenv(PROJECT_DIR / ".env")
         return cls(
+            model_backend=_env("MODEL_BACKEND", cls.model_backend).lower(),
             gemini_api_key=_env("GEMINI_API_KEY", ""),
+            google_cloud_project=_env("GOOGLE_CLOUD_PROJECT", ""),
+            google_cloud_location=_env("GOOGLE_CLOUD_LOCATION", cls.google_cloud_location),
+            ollama_url=_env("OLLAMA_URL", cls.ollama_url),
+            ollama_model=_env("OLLAMA_MODEL", ""),
+            score_batch_size=int(_env("SCORE_BATCH_SIZE", str(cls.score_batch_size))),
             gemini_model=_env("GEMINI_MODEL", cls.gemini_model),
             gemini_model_strong=_env("GEMINI_MODEL_STRONG", ""),
             media_res_analyze=_env("MEDIA_RES_ANALYZE", cls.media_res_analyze),

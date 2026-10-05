@@ -21,6 +21,7 @@
   </select>
   <button @click="newRun()">新建</button>
   <span class="spacer"></span>
+  <span class="muted small" x-text="`${backendLabel()} · ${config.model || '未设置模型'}`"></span>
   <template x-if="state"><span class="muted" x-text="usageText()"></span></template>
 </header>
 
@@ -119,7 +120,8 @@
         </details>
         <button @click="saveRegions()">保存地区</button>
 
-        <div class="grounding">
+        <div class="warning" x-show="!regions.grounded">以上地区由本地模型给出，未经 Google 搜索核实，地名与理由可能有误。</div>
+        <div class="grounding" x-show="regions.grounded">
           <div class="muted small">以下为 Google 搜索结果（grounding），原样展示</div>
           <iframe class="suggestions" x-show="regions.search_suggestions_html" :srcdoc="regions.search_suggestions_html"
                   sandbox="allow-popups allow-popups-to-escape-sandbox" title="Google Search Suggestions"></iframe>
@@ -128,8 +130,8 @@
               <li><a :href="c.uri" target="_blank" rel="noopener" x-text="c.title || c.uri"></a></li>
             </template>
           </ol>
-          <details><summary>原始返回</summary><pre x-text="regions.raw_text"></pre></details>
         </div>
+        <details><summary>原始返回</summary><pre x-text="regions.raw_text"></pre></details>
       </div>
     </template>
   </div>

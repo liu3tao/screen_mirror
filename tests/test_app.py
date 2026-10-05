@@ -5,7 +5,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from dreamview.app import create_app
-from dreamview.gemini import Gemini, GeminiError
+from dreamview.gemini import Gemini
+from dreamview.llm import ModelError as GeminiError
 from dreamview.pipeline import JobDeps
 from dreamview.schemas import (
     Element,
@@ -18,7 +19,7 @@ from dreamview.schemas import (
 )
 from dreamview.search import ImageHit, Throttle
 
-from .conftest import fake_response, fake_usage, make_image
+from .conftest import make_image
 
 ELEMENTS = [Element(name="海景", description="看到海", weight=1.0), Element(name="高层", description="俯瞰", weight=0.5)]
 
@@ -31,7 +32,7 @@ class FakeGemini(Gemini):
 
     def analyze_scene(self, meter, image, mime="image/jpeg"):
         meter.before_call()
-        meter.record(fake_response(usage=fake_usage(image_tokens=1120)), n_images=1, media_res="high")
+        meter.add(1000, 100, image_tokens=1120, n_images=1, media_res="high")
         if self.fail_analyze:
             raise self.fail_analyze
         return SceneAnalysis(summary="海边高层", elements=ELEMENTS, keywords=["海景房 落地窗"])
@@ -49,7 +50,7 @@ class FakeGemini(Gemini):
 
     def score_batch(self, meter, elements, thumbs):
         meter.before_call()
-        meter.record(fake_response(usage=fake_usage(image_tokens=280 * len(thumbs))), n_images=len(thumbs), media_res="low")
+        meter.add(3000, 400, image_tokens=280 * len(thumbs), n_images=len(thumbs), media_res="low")
         self.score_calls += 1
         base = self.score_calls
         return ScoreBatchOut(
@@ -100,7 +101,7 @@ def env(tmp_settings):
         http = httpx.Client(transport=thumb_transport(), trust_env=False)
         return JobDeps(tmp_settings, app_holder["app"].state.store, gem, engine, http, Throttle(0))
 
-    app = create_app(tmp_settings, gemini=gem, deps_factory=deps_factory, run_jobs_inline=True)
+    app = create_app(tmp_settings, model=gem, deps_factory=deps_factory, run_jobs_inline=True)
     app_holder["app"] = app
     return TestClient(app), gem, engine
 
@@ -229,3 +230,49 @@ def test_interrupted_job_is_reported(env):
     st.status = "scoring"
     store.save_state(st)
     assert client.get(f"/api/runs/{run_id}").json()["state"]["status"] == "error"
+
+
+def test_full_flow_with_ollama_backend(tmp_settings):
+    """真实 Ollama 适配器 + 伪造的 Ollama HTTP 服务，走完整流程。"""
+    import json
+
+    from dreamview.ollama import Ollama
+
+    def ollama_handler(req: httpx.Request):
+        body = json.loads(req.content)
+        title = body["format"].get("title")
+        images = body["messages"][0]["images"]
+        if title == "SceneAnalysis":
+            out = {"summary": "海边", "elements": [{"name": "海景", "description": "d", "weight": 1.0}], "keywords": ["海景房"]}
+        elif title == "RegionsOut":
+            out = {"regions": [{"city": "热海", "district": "", "reason": "r", "months": "", "keywords": ["熱海 民泊"], "search_region": "jp-jp"}]}
+        else:
+            out = {"results": [{"index": i, "scores": [{"element": "海景", "score": 7}]} for i in range(len(images))]}
+        return httpx.Response(200, json={"message": {"content": json.dumps(out, ensure_ascii=False)}, "prompt_eval_count": 10, "eval_count": 5})
+
+    tmp_settings.model_backend = "ollama"
+    tmp_settings.ollama_model = "qwen2.5vl:7b"
+    tmp_settings.max_images = 5
+    model = Ollama(tmp_settings, client=httpx.Client(transport=httpx.MockTransport(ollama_handler), trust_env=False))
+    engine, holder = FakeEngine(), {}
+
+    def deps_factory():
+        http = httpx.Client(transport=thumb_transport(), trust_env=False)
+        return JobDeps(tmp_settings, holder["app"].state.store, model, engine, http, Throttle(0))
+
+    app = create_app(tmp_settings, model=model, deps_factory=deps_factory, run_jobs_inline=True)
+    holder["app"] = app
+    client = TestClient(app)
+    cfg = client.get("/api/config").json()
+    assert (cfg["backend"], cfg["model"], cfg["grounded"]) == ("ollama", "qwen2.5vl:7b", False)
+
+    run_id = upload(client)["state"]["id"]
+    regions = client.post(f"/api/runs/{run_id}/regions", json={"scopes": ["日本"]}).json()
+    assert regions["grounded"] is False
+    regions["regions"][0]["selected"] = True
+    client.put(f"/api/runs/{run_id}/regions", json={"regions": regions["regions"]})
+    assert client.post(f"/api/runs/{run_id}/search").status_code == 202
+    st = client.get(f"/api/runs/{run_id}").json()["state"]
+    assert st["status"] == "done", st["error"]
+    assert len(st["items"]) == 5 and all(it["score"] == 7.0 for it in st["items"])
+    assert st["usage"]["usd"] == 0 and st["usage"]["calls"] == 3

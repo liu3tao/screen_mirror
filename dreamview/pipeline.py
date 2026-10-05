@@ -10,7 +10,7 @@ import httpx
 
 from . import images
 from .config import Settings
-from .gemini import CallLimitExceeded, Gemini, GeminiError, Meter
+from .llm import CallLimitExceeded, Meter, ModelBackend, ModelError
 from .schemas import RegionsState, RunState, Scene, WallItem
 from .scoring import score_items, sort_wall
 from .search import ImageSearch, Throttle, classify_source, search_with_retry
@@ -47,7 +47,7 @@ def build_queries(scene: Scene, regions: RegionsState) -> list[Query]:
 class JobDeps:
     settings: Settings
     store: RunStore
-    gemini: Gemini
+    model: ModelBackend
     engine: ImageSearch
     http: httpx.Client
     throttle: Throttle
@@ -184,13 +184,13 @@ def _score(state: RunState, scene: Scene, deps: JobDeps, update, lg) -> None:
     for bi, batch in enumerate(batches):
         data = [(run_dir / it.thumb_file).read_bytes() for it in batch]
         try:
-            err = score_items(batch, elements, data, lambda imgs: deps.gemini.score_batch(meter, elements, imgs))
+            err = score_items(batch, elements, data, lambda imgs: deps.model.score_batch(meter, elements, imgs))
         except CallLimitExceeded as e:
             for it in [it for b in batches[bi:] for it in b]:
                 it.status = "unscored"
             meter.warnings.append(str(e) + "，其余图片未打分。")
             break
-        except GeminiError as e:
+        except ModelError as e:
             if e.code and e.code >= 500:
                 for it in batch:
                     it.status = "unscored"
@@ -209,12 +209,12 @@ def _score(state: RunState, scene: Scene, deps: JobDeps, update, lg) -> None:
         state.warnings = list(dict.fromkeys(state.warnings + meter.warnings))
 
 
-def make_deps_factory(settings: Settings, store: RunStore, gemini: Gemini, engine_factory: Callable[[], ImageSearch]):
+def make_deps_factory(settings: Settings, store: RunStore, model: ModelBackend, engine_factory: Callable[[], ImageSearch]):
     def factory() -> JobDeps:
         return JobDeps(
             settings=settings,
             store=store,
-            gemini=gemini,
+            model=model,
             engine=engine_factory(),
             http=images.make_client(),
             throttle=Throttle(settings.search_interval_s),

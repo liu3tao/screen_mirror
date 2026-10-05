@@ -141,7 +141,7 @@ function dreamview() {
     addManual() {
       if (!this.manual.city.trim()) return;
       if (!this.regions) {
-        this.regions = { scopes: [], regions: [], raw_text: '', search_suggestions_html: '', citations: [], web_search_queries: [], parse_error: '' };
+        this.regions = { scopes: [], grounded: true, regions: [], raw_text: '', search_suggestions_html: '', citations: [], web_search_queries: [], parse_error: '' };
       }
       this.regions.regions.push({
         id: 'm' + Date.now().toString(36),
@@ -208,9 +208,14 @@ function dreamview() {
       this.timer = null;
     },
 
+    backendLabel() {
+      return { gemini: 'Gemini API', vertex: 'Vertex AI', ollama: 'Ollama（本地）' }[this.config.backend] || this.config.backend || '';
+    },
+
     usageText() {
       const u = this.state.usage;
-      return `模型调用 ${u.calls} 次 · 输入 ${u.input_tokens} / 输出 ${u.output_tokens + u.thought_tokens} token · 约 $${u.usd.toFixed(3)}`;
+      const cost = this.config.backend === 'ollama' ? '本地免费' : `约 $${u.usd.toFixed(3)}`;
+      return `模型调用 ${u.calls} 次 · 输入 ${u.input_tokens} / 输出 ${u.output_tokens + u.thought_tokens} token · ${cost}`;
     },
 
     wallRegions() {

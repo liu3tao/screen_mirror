@@ -12,7 +12,7 @@ from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from .config import SCOPE_TAGS, STATIC_DIR, Settings
-from .gemini import CallLimitExceeded, Gemini, GeminiError, Meter
+from .llm import CallLimitExceeded, Meter, ModelBackend, ModelError, make_backend
 from .pipeline import JobDeps, build_queries, make_deps_factory, run_search_job
 from .schemas import Region, RegionsState, Scene
 from .search import ImageSearch, make_search
@@ -32,14 +32,14 @@ class RegionsIn(BaseModel):
 def create_app(
     settings: Settings | None = None,
     *,
-    gemini: Gemini | None = None,
+    model: ModelBackend | None = None,
     engine_factory: Callable[[], ImageSearch] | None = None,
     deps_factory: Callable[[], JobDeps] | None = None,
     run_jobs_inline: bool = False,
 ) -> FastAPI:
     s = settings or Settings.from_env()
     store = RunStore(s.runs_dir)
-    gem = gemini or Gemini(s)
+    gem = model or make_backend(s)
     deps_factory = deps_factory or make_deps_factory(s, store, gem, engine_factory or (lambda: make_search(s)))
     running: set[str] = set()
     running_lock = threading.Lock()
@@ -52,8 +52,8 @@ def create_app(
     async def _not_found(_: Request, exc: RunNotFound):
         return JSONResponse({"error": f"run 不存在：{exc}"}, status_code=404)
 
-    @app.exception_handler(GeminiError)
-    async def _gemini_error(_: Request, exc: GeminiError):
+    @app.exception_handler(ModelError)
+    async def _model_error(_: Request, exc: ModelError):
         return JSONResponse({"error": str(exc), "hint": exc.hint}, status_code=502)
 
     @app.exception_handler(CallLimitExceeded)
@@ -95,7 +95,9 @@ def create_app(
             "image_search": s.image_search,
             "max_images": s.max_images,
             "score_batch_size": s.score_batch_size,
-            "model": s.gemini_model,
+            "backend": gem.name,
+            "model": s.model_name,
+            "grounded": gem.grounded,
         }
 
     @app.get("/api/runs")
@@ -112,7 +114,7 @@ def create_app(
         meter = meter_for(state.id)
         try:
             analysis = await run_in_threadpool(gem.analyze_scene, meter, store.ref_image(state.id))
-        except (GeminiError, CallLimitExceeded) as e:
+        except (ModelError, CallLimitExceeded) as e:
             save_usage(state.id, meter)
             with store.lock:
                 state.status, state.error, state.error_hint = "error", str(e), getattr(e, "hint", "")
