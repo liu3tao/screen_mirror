@@ -1,12 +1,13 @@
-# 窗景找房：技术设计文档 v0.10
+# 窗景找房：技术设计文档 v0.11
 
-- 状态：v0.10 已批准；阶段 0 进行中（待 H0-1）
+- 状态：M1 已实现并合并（v0.10）；v0.11 增加模型后端切换（用户决策，附录 H）
 - 定位：单人业余项目。能用文件不用数据库；能用云端开关不自己写计费；前端单页。
 - 平台：macOS · Python 3.11+ · Chrome（运行）；Claude Code 云端会话（开发）
 - 外部服务：Gemini API（付费层，含 Google Search grounding）；图片搜索 `ddgs`（默认）/ Brave（M1 实测对比）
 - v0.8 变更（用户决策，附录 D）：删除飞行时长；地区偏好系数改为「搜索范围」前置多选；排序只用视觉分；地区可多选
 - v0.9 变更（第四轮审计，附录 E/F）：通用关键词默认关；按地区设搜索语言/国家参数；grounding 解析失败兜底；提示词独立文件；新增 Claude 对比与结论
 - v0.10 变更（第五轮审计，附录 G）：**[阻断] 显式设置 `media_resolution`**（Gemini 3 默认每图 1,120 token，非 300）；**[阻断] 思考配置改为 `thinking_level`，费用表补输出 token 列并重算**；删除上游需求文档引用（本文第 1 节即目标）；开发环境改为 Claude Code 云端会话并补充其限制；第 7 节按开发阶段重写人工事项
+- v0.11 变更（用户决策，附录 H）：模型后端可选 `gemini`（AI Studio，默认）/ `vertex`（Vertex AI，可用 Cloud 试用额度）/ `ollama`（本机，无 grounding、免费）
 
 ---
 
@@ -73,7 +74,8 @@
 ```
 dreamview/
   pyproject.toml  .env.example
-  dreamview/  app.py  config.py  gemini.py  search.py  images.py  scoring.py
+  dreamview/  app.py  config.py  search.py  images.py  scoring.py
+              llm.py  gemini.py  ollama.py           # 模型后端：公共接口与计量 / AI Studio + Vertex / Ollama（v0.11）
               schemas.py  store.py  pipeline.py      # 数据结构、run 目录读写、后台任务（M1 实现时拆出）
               static/  index.html  app.js  alpine.min.js  style.css
               prompts/  analyze.md  regions.md  regions_json_fallback.md  score.md  audit.md   # 提示词独立文件，改提示词不改代码
@@ -124,6 +126,19 @@ flowchart TD
 | `POST /api/audit` | M2 |
 
 ### 3.5 模型
+
+**后端（v0.11，`.env` 的 `MODEL_BACKEND`）**
+
+| 后端 | 计费 | 找地区 | 配置 |
+|---|---|---|---|
+| `gemini`（默认） | AI Studio（预付费） | Gemini + Google Search grounding | `GEMINI_API_KEY` |
+| `vertex` | Cloud 结算账户；Free Trial 300 USD 额度可抵扣（Google 自家模型不在排除项内） | 同上 | `GOOGLE_CLOUD_PROJECT`、`GOOGLE_CLOUD_LOCATION`（默认 `global`）；本机 `gcloud auth application-default login` |
+| `ollama` | 免费（本机算力） | **无 grounding**：仅凭模型知识，UI 标注「未经核实」，不展示引用与 Suggestions | `OLLAMA_URL`、`OLLAMA_MODEL`（需支持多图的视觉模型） |
+
+- 接口：`llm.ModelBackend` 三个方法（`analyze_scene` / `find_regions` / `score_batch`），`make_backend()` 按配置创建。`gemini` 与 `vertex` 是同一个类（同一 SDK，仅客户端初始化与报错提示不同）。
+- 计量：三者共用 `Meter`（调用上限、token 记录）；`ollama` 不计费、无单图 token 校验。
+- `ollama` 的取舍：本机推理慢（600 张约数十分钟，视模型与机器而定），可调 `SCORE_BATCH_SIZE`；打分质量需用 3.10 评测确认；参考图本地压到长边 1,024。
+- 以下 Gemini 配置对 `gemini` 与 `vertex` 相同。
 
 | 配置 | 默认 | 说明 |
 |---|---|---|
@@ -293,7 +308,9 @@ flowchart TD
 
 ### 阶段 1：账号与密钥（M1 编码开始前，约 40 min）
 - H1：developers.google.com/program → My benefits → 激活 AI Pro 每月 Cloud 额度 → 关联账单账户。
-- H2：AI Studio → 新建项目与 API Key → 关联 H1 账单账户（付费层）。
+- H2：AI Studio → 新建项目与 API Key → 关联 H1 账单账户（付费层）或预付费。✅ 已完成（预付费）。
+- H2-V（可选，用 Cloud 试用额度时）：Cloud 控制台 → 项目 → 启用 Vertex AI API；本机 `brew install --cask google-cloud-sdk`、`gcloud auth application-default login`、`gcloud config set project <项目 ID>`；`.env` 设 `MODEL_BACKEND=vertex` 与 `GOOGLE_CLOUD_PROJECT`；首跑次日在「结算 → 报表」确认被抵扣额抵扣。
+- H2-O（可选，本地模型时）：安装 Ollama → `ollama pull <视觉模型>` → `.env` 设 `MODEL_BACKEND=ollama` 与 `OLLAMA_MODEL`。
 - H3：AI Studio → Spend / Usage Limits → 项目月上限 10 USD。
 - H4（可选）：Brave Search API 注册 → 绑卡 → 月上限 5 USD。
 - H5：云端环境设置 → Environment secrets 加入 `GEMINI_API_KEY`（及可选 `BRAVE_API_KEY`）。
@@ -324,11 +341,12 @@ flowchart TD
 
 ### 不需要
 - 房源平台开发者账号、域名、服务器、Node.js、Docker、PyTorch、Chrome 商店发布、Anthropic API Key。
+- 把程序部署到 Google Cloud：本程序运行开销在 Gemini 调用，不在算力；用试用额度只需切 `vertex` 后端，程序仍在本机跑。
 
 ---
 
 ## 附录 A：历史简化（v0.4 → v0.6）
-- 已砍：SigLIP + PyTorch、SQLite、SSE、自建费用上限与账本、图片代理与 LRU、Provider 抽象、`travel_table`、插件注入浮窗与站点适配、自动体检、M3、Serper。
+- 已砍：SigLIP + PyTorch、SQLite、SSE、自建费用上限与账本、图片代理与 LRU、Provider 抽象（v0.11 按用户决策以最小形式恢复，见附录 H）、`travel_table`、插件注入浮窗与站点适配、自动体检、M3、Serper。
 - 保留：几何平均、结构化输出、重试 1 次后标记、不自动翻页。
 
 ## 附录 B：待办（不排期）
@@ -400,3 +418,12 @@ flowchart TD
 | 云端会话无法访问图片搜索站点；数据中心 IP 不适合做 ddgs/Brave 对比 | 一般 | 新增 3.11；H6 可选放行；H14 必须本机 |
 | 附录 E「据报道底层为 Brave 索引」未经核实 | 一般 | 删除 |
 | Claude 云端额度条款「据多方来源」 | 一般 | 已核实，改为确定表述 |
+
+## 附录 H：v0.11 用户决策（模型后端）
+
+| 决策 | 理由 | 影响 |
+|---|---|---|
+| 默认仍用 AI Studio Gemini API | 用户已预付费 | `MODEL_BACKEND=gemini` 为默认，行为与 v0.10 相同 |
+| 增加 Vertex AI 后端 | Cloud Free Trial 300 USD 不能付 AI Studio，但可付 Vertex 上的 Gemini（排除项仅 AI Studio 与合作方 MaaS 模型） | 同一 SDK，`genai.Client(vertexai=True, project, location)`；认证用 ADC；Vertex 无 Spend Cap，试用账户额度用尽即停止，不扣费 |
+| 增加 Ollama 本地后端 | 离线、零费用，便于试验 | 新增 `ollama.py`（httpx 调 `/api/chat`，`format` 传 JSON schema，展开 `$ref`）；找地区无 grounding，UI 标注；不新增依赖 |
+| 抽象保持最小 | 避免过度设计 | 只有 3 个方法的 Protocol + 工厂函数；无插件注册、无多后端同时调用 |

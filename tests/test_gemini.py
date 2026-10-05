@@ -3,15 +3,9 @@ from types import SimpleNamespace
 import pytest
 from google.genai import errors, types
 
-from dreamview.gemini import (
-    CallLimitExceeded,
-    Gemini,
-    GeminiError,
-    Meter,
-    error_hint,
-    extract_json,
-    parse_output,
-)
+from dreamview.gemini import Gemini, error_hint, record_usage
+from dreamview.llm import CallLimitExceeded, Meter, extract_json, parse_output
+from dreamview.llm import ModelError as GeminiError
 from dreamview.schemas import (
     Element,
     ElementScore,
@@ -76,7 +70,7 @@ def test_error_hint(code, msg, needle):
 def test_meter_counts_cost_and_limit():
     m = Meter(limit=2)
     m.before_call()
-    m.record(fake_response(usage=fake_usage(prompt=1_000_000, out=100_000, thoughts=100_000)))
+    record_usage(m, fake_response(usage=fake_usage(prompt=1_000_000, out=100_000, thoughts=100_000)))
     assert m.usage.calls == 1
     assert m.usage.usd == pytest.approx(0.30 + 0.2 * 2.5)
     m.before_call()
@@ -86,15 +80,15 @@ def test_meter_counts_cost_and_limit():
 
 def test_meter_warns_when_image_tokens_deviate():
     m = Meter(limit=10)
-    m.record(fake_response(usage=fake_usage(image_tokens=8 * 1120)), n_images=8, media_res="low")
+    record_usage(m, fake_response(usage=fake_usage(image_tokens=8 * 1120)), n_images=8, media_res="low")
     assert len(m.warnings) == 1 and "media_resolution=low" in m.warnings[0]
-    m.record(fake_response(usage=fake_usage(image_tokens=8 * 1120)), n_images=8, media_res="low")
+    record_usage(m, fake_response(usage=fake_usage(image_tokens=8 * 1120)), n_images=8, media_res="low")
     assert len(m.warnings) == 1  # 每档只警告一次
 
 
 def test_meter_no_warning_within_tolerance():
     m = Meter(limit=10)
-    m.record(fake_response(usage=fake_usage(image_tokens=8 * 300)), n_images=8, media_res="low")
+    record_usage(m, fake_response(usage=fake_usage(image_tokens=8 * 300)), n_images=8, media_res="low")
     assert m.warnings == [] and m.usage.image_tokens == 2400 and m.usage.images == 8
 
 

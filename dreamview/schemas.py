@@ -83,6 +83,7 @@ class Citation(BaseModel):
 
 class RegionsState(BaseModel):
     scopes: list[str] = []
+    grounded: bool = True  # False：本地模型给出，未经 Google 搜索核实
     regions: list[Region] = []
     raw_text: str = ""
     search_suggestions_html: str = ""
