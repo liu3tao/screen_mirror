@@ -58,9 +58,9 @@ _brave_throttle = Throttle(1.1)  # Brave 免费档 1 次/秒
 
 def search_live(engine_name: str, query: str, region: str, n: int = 30):
     """调用真实引擎；不可达 / 缺 Key / 被限流时跳过。"""
-    if engine_name == "ddgs":
-        require_host("https://duckduckgo.com")
-        engine, throttle = DdgsSearch(), _ddgs_throttle
+    if engine_name in ("bing", "duckduckgo"):
+        require_host("https://www.bing.com" if engine_name == "bing" else "https://duckduckgo.com")
+        engine, throttle = DdgsSearch(backend=engine_name), _ddgs_throttle
     else:
         key = os.environ.get("BRAVE_API_KEY") or Settings.from_env().brave_api_key
         if not key:
@@ -76,7 +76,7 @@ def search_live(engine_name: str, query: str, region: str, n: int = 30):
         raise
 
 
-ENGINES = ["ddgs", "brave"]
+ENGINES = ["bing", "duckduckgo", "brave"]
 
 
 @pytest.fixture(params=ENGINES)

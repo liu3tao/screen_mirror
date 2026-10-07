@@ -45,21 +45,29 @@ def patch_ddgs_http2_headers() -> None:
         DuckduckgoImages.headers_update = {k: v for k, v in headers.items() if k.lower() != "connection"}
 
 
-class DdgsSearch:
-    name = "DuckDuckGo"
+DDGS_BACKEND_NAMES = {"bing": "Bing", "duckduckgo": "DuckDuckGo"}
 
-    def __init__(self, ddgs=None):
+
+def ddgs_source_name(backend: str) -> str:
+    return " + ".join(DDGS_BACKEND_NAMES.get(b.strip(), b.strip()) for b in backend.split(",") if b.strip())
+
+
+class DdgsSearch:
+    """经 ddgs 库调用 Bing / DuckDuckGo 图片搜索（免注册）。Bing 引擎忽略区域参数。"""
+
+    def __init__(self, ddgs=None, backend: str = "bing"):
         if ddgs is None:
             from ddgs import DDGS
 
             patch_ddgs_http2_headers()
-
             ddgs = DDGS(timeout=15)
         self._ddgs = ddgs
+        self.backend = backend
+        self.name = ddgs_source_name(backend)
 
     def search(self, query: str, region: str, max_results: int) -> list[ImageHit]:
         rows = self._ddgs.images(
-            query, region=region or "wt-wt", safesearch="moderate", max_results=max_results, backend="duckduckgo"
+            query, region=region or "wt-wt", safesearch="moderate", max_results=max_results, backend=self.backend
         )
         hits = []
         for r in rows:
@@ -153,7 +161,11 @@ class BraveSearch:
 def make_search(settings: Settings) -> ImageSearch:
     if settings.image_search == "brave":
         return BraveSearch(settings.brave_api_key)
-    return DdgsSearch()
+    return DdgsSearch(backend=settings.ddgs_backend)
+
+
+def image_source_name(settings: Settings) -> str:
+    return "Brave" if settings.image_search == "brave" else ddgs_source_name(settings.ddgs_backend)
 
 
 class Throttle:

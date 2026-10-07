@@ -73,6 +73,7 @@ class Settings:
     thinking_level: str = "minimal"
     thinking_level_regions: str = "low"
     image_search: str = "ddgs"  # ddgs | brave
+    ddgs_backend: str = "bing"  # ddgs 内部引擎：bing | duckduckgo | bing,duckduckgo（DuckDuckGo 常返回 403）
     brave_api_key: str = ""
     search_interval_s: float = 1.5
     search_per_query: int = 100
@@ -113,6 +114,7 @@ class Settings:
             thinking_level=_env("THINKING_LEVEL", cls.thinking_level),
             thinking_level_regions=_env("THINKING_LEVEL_REGIONS", cls.thinking_level_regions),
             image_search=_env("IMAGE_SEARCH", cls.image_search),
+            ddgs_backend=_env("DDGS_BACKEND", cls.ddgs_backend).lower(),
             brave_api_key=_env("BRAVE_API_KEY", ""),
             search_interval_s=float(_env("SEARCH_INTERVAL_S", str(cls.search_interval_s))),
             max_images=int(_env("MAX_IMAGES", str(cls.max_images))),

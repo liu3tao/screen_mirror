@@ -53,11 +53,11 @@ uv run pytest
 ### 联网集成测试（默认不跑）
 
 ```sh
-uv run pytest -m live                    # 真实 DuckDuckGo / Brave 搜图 + 缩略图下载 + 完整流程（模型为伪造，不花钱）
+uv run pytest -m live                    # 真实 Bing / DuckDuckGo / Brave 搜图 + 缩略图下载 + 完整流程（模型为伪造，不花钱）
 LIVE_GEMINI=1 uv run pytest -m live      # 另跑真实模型（按 .env 的 MODEL_BACKEND；约 3 次调用，< 0.01 USD）
 ```
 
 - Brave 测试需要 `BRAVE_API_KEY`（`.env` 或环境变量）。
 - 以下情况**跳过**而非失败：主机不可达（网络策略）、缺 Key、DuckDuckGo 限流或拦截本机 IP。其他错误（如库升级导致请求出错）会**失败**。
 - 真实模型测试会检查单图 token 偏差警告为空（即 `media_resolution` 生效）。
-- 在 Claude 云端会话里跑：环境 Network access 需放行 `duckduckgo.com`、`*.duckduckgo.com`、`*.mm.bing.net`、`api.search.brave.com`、`imgs.search.brave.com`；云端出口是数据中心 IP，DuckDuckGo 常被拦截，Brave 更可靠。
+- 在 Claude 云端会话里跑：环境 Network access 需放行 `www.bing.com`、`duckduckgo.com`、`*.duckduckgo.com`、`*.mm.bing.net`、`api.search.brave.com`、`imgs.search.brave.com`；云端出口是数据中心 IP，DuckDuckGo 常被拦截，Brave 更可靠。
