@@ -33,6 +33,11 @@ packages = ["dreamview"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# 联网测试默认不跑：uv run pytest -m live
+addopts = "-m 'not live'"
+markers = [
+    "live: 访问真实图片搜索 / 模型服务的集成测试（需要网络，可能需要 Key）",
+]
 filterwarnings = [
     # google-genai 内部用了 Python 3.14 弃用的 typing._UnionGenericAlias（上游 2.28.0 未修）；只忽略这一条
     "ignore:'_UnionGenericAlias' is deprecated:DeprecationWarning:google.genai.types",
