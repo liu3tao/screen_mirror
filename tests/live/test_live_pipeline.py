@@ -18,8 +18,8 @@ pytestmark = pytest.mark.live
 
 
 def _engine(name, settings):
-    if name == "ddgs":
-        return DdgsSearch()
+    if name in ("bing", "duckduckgo"):
+        return DdgsSearch(backend=name)
     return BraveSearch(settings.brave_api_key or os.environ.get("BRAVE_API_KEY", ""))
 
 

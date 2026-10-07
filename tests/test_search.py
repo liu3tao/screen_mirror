@@ -62,8 +62,10 @@ class FakeDDGS:
 
 def test_ddgs_search_maps_fields_and_region():
     fake = FakeDDGS()
-    hits = DdgsSearch(fake).search("海景 民宿", "jp-jp", 50)
-    assert fake.kwargs["region"] == "jp-jp" and fake.kwargs["max_results"] == 50 and fake.kwargs["backend"] == "duckduckgo"
+    eng = DdgsSearch(fake)
+    hits = eng.search("海景 民宿", "jp-jp", 50)
+    assert fake.kwargs["region"] == "jp-jp" and fake.kwargs["max_results"] == 50 and fake.kwargs["backend"] == "bing"
+    assert eng.name == "Bing"
     assert len(hits) == 1
     h = hits[0]
     assert (h.page_url, h.thumb_url, h.image_url, h.width, h.height) == ("https://p/1", "https://tse/1", "https://img/1.jpg", 1200, 800)
@@ -153,3 +155,26 @@ def test_patch_ddgs_http2_headers_removes_connection():
     patch_ddgs_http2_headers()  # 幂等
     keys = {k.lower() for k in DuckduckgoImages.headers_update}
     assert "connection" not in keys and "referer" in keys
+
+
+@pytest.mark.parametrize(
+    "backend,name",
+    [("bing", "Bing"), ("duckduckgo", "DuckDuckGo"), ("bing,duckduckgo", "Bing + DuckDuckGo")],
+)
+def test_ddgs_backend_is_configurable(backend, name):
+    fake = FakeDDGS()
+    eng = DdgsSearch(fake, backend=backend)
+    eng.search("q", "wt-wt", 10)
+    assert fake.kwargs["backend"] == backend and eng.name == name
+
+
+def test_make_search_uses_settings():
+    from dreamview.config import Settings
+    from dreamview.search import image_source_name, make_search
+
+    s = Settings(ddgs_backend="duckduckgo")
+    eng = make_search(s)
+    assert isinstance(eng, DdgsSearch) and eng.backend == "duckduckgo"
+    assert image_source_name(s) == "DuckDuckGo"
+    assert image_source_name(Settings()) == "Bing"
+    assert image_source_name(Settings(image_search="brave", brave_api_key="k")) == "Brave"

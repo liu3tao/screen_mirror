@@ -23,7 +23,7 @@ const ACTIVE = ['searching', 'downloading', 'scoring'];
 
 function dreamview() {
   return {
-    config: { scope_tags: [], image_search: 'ddgs' },
+    config: { scope_tags: [], image_search: 'ddgs', image_source: '' },
     runs: [],
     runId: '',
     state: null,

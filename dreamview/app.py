@@ -15,7 +15,7 @@ from .config import SCOPE_TAGS, STATIC_DIR, Settings
 from .llm import CallLimitExceeded, Meter, ModelBackend, ModelError, make_backend
 from .pipeline import JobDeps, build_queries, make_deps_factory, run_search_job
 from .schemas import Region, RegionsState, Scene
-from .search import ImageSearch, make_search
+from .search import ImageSearch, image_source_name, make_search
 from .store import RunNotFound, RunStore, log_json
 
 ACTIVE_STATUSES = {"searching", "downloading", "scoring"}
@@ -93,6 +93,7 @@ def create_app(
         return {
             "scope_tags": SCOPE_TAGS,
             "image_search": s.image_search,
+            "image_source": image_source_name(s),
             "max_images": s.max_images,
             "score_batch_size": s.score_batch_size,
             "backend": gem.name,

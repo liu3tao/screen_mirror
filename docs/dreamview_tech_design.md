@@ -190,7 +190,8 @@ flowchart TD
 
 | 选项 | 费用 | 结论 |
 |---|---|---|
-| `ddgs` | 0，免注册；`images(max_results≤100)` | 默认。非官方，请求间隔 1–2 s |
+| `ddgs`（`DDGS_BACKEND=bing`，默认） | 0，免注册 | 默认。非官方；经 ddgs 调 Bing 图片，忽略区域参数（关键词本身为当地语言）；请求间隔 1–2 s |
+| `ddgs`（`DDGS_BACKEND=duckduckgo`） | 0，免注册 | 2026-10 本机实测 `i.js` 返回 403（反爬），不再作默认；可设 `bing,duckduckgo` 合并 |
 | Brave Search API | 每月赠 5 USD ≈ 1,000 次；需绑卡；可锁 5 USD | 同签名第二实现，`.env` 切换 |
 
 - 搜索次数 = 勾选地区数 × 2–3。缩小范围、少勾地区即直接减少搜索、下载与打分量。
@@ -282,6 +283,7 @@ flowchart TD
 | `minimal` 思考档在该模型不可用 | 回退 `low`；首跑记录思考 token |
 | AI Pro 额度不可用 | 每次约 0.31 USD，自付可接受 |
 | `ddgs` 限流或失效 | 间隔 + 重试 1 次；切 Brave |
+| DuckDuckGo 对脚本请求返回 403（2026-10 实测） | 默认改为 ddgs 的 Bing 引擎（`DDGS_BACKEND`）；联网测试分别覆盖 Bing / DuckDuckGo / Brave |
 | `ddgs` 9.16 + primp 2.x 走 HTTP/2 时，DuckDuckGo 图片请求带非法的 `Connection` 头，报 "malformed headers" | 启动时从该引擎请求头中去掉 `Connection`（`search.patch_ddgs_http2_headers`）；上游修复后删除 |
 | 云端会话无法访问图片搜索站点 | 云端用 fixture；联网搜图只在本机验收（3.11） |
 | 中文站覆盖差 | 本地语言关键词；对比两家；接受 |
@@ -316,7 +318,7 @@ flowchart TD
 - H3：AI Studio → Spend / Usage Limits → 项目月上限 10 USD。
 - H4（可选）：Brave Search API 注册 → 绑卡 → 月上限 5 USD。
 - H5：云端环境设置 → Environment secrets 加入 `GEMINI_API_KEY`（及可选 `BRAVE_API_KEY`）。
-- H6（可选）：云端环境设置 → Network access → Custom，加 `duckduckgo.com`、`*.duckduckgo.com`、`*.mm.bing.net`、`api.search.brave.com`，保留默认包管理器列表。不加则云端只用 fixture。
+- H6（可选）：云端环境设置 → Network access → Custom，加 `www.bing.com`、`duckduckgo.com`、`*.duckduckgo.com`、`*.mm.bing.net`、`api.search.brave.com`，保留默认包管理器列表。不加则云端只用 fixture。
 - H7：确认 `config.py` 硬约束（整租、2 人、≤ 10k USD/月、≥ 28 晚）与搜索范围标签列表。
 - H8：准备 3 张参考图（用例 #1 + 2 张风格不同），存本机 `eval/`。云端测试用无版权的合成图或公开授权图作 fixture。
 

@@ -167,7 +167,7 @@
     </template>
     <span class="muted" x-text="`显示 ${wall().length} 张`"></span>
   </div>
-  <div class="muted small" x-show="state && state.items.length" x-text="`图片来自 ${config.image_search === 'brave' ? 'Brave' : 'DuckDuckGo'} 图片搜索，与上方 Google 结果无关`"></div>
+  <div class="muted small" x-show="state && state.items.length" x-text="`图片来自 ${config.image_source} 图片搜索，与上方 Google 结果无关`"></div>
 
   <div class="wall">
     <template x-for="it in wall()" :key="it.id">
