@@ -20,7 +20,6 @@ class Element(BaseModel):
 class SceneAnalysis(BaseModel):
     summary: str
     elements: list[Element]
-    keywords: list[str] = Field(description="通用图片搜索关键词，不含地名")
 
 
 class RegionOut(BaseModel):
@@ -56,8 +55,6 @@ class ScoreBatchOut(BaseModel):
 class Scene(BaseModel):
     summary: str = ""
     elements: list[Element] = []
-    keywords: list[str] = []
-    use_generic_keywords: bool = False
 
 
 class Region(BaseModel):
@@ -100,7 +97,7 @@ class WallItem(BaseModel):
     thumb_file: str = ""
     title: str = ""
     region_id: str = ""
-    region_label: str = "地区未知"
+    region_label: str = ""
     query: str = ""
     source_type: str = "其他"
     width: int = 0

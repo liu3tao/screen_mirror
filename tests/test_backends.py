@@ -140,7 +140,7 @@ def ok(content: str, p=500, e=50):
 
 
 def test_ollama_analyze_request_shape_and_resize(tmp_settings):
-    analysis = SceneAnalysis(summary="s", elements=SCENE.elements, keywords=["k"])
+    analysis = SceneAnalysis(summary="s", elements=SCENE.elements)
     o, srv = ollama(tmp_settings, [ok(analysis.model_dump_json())])
     m = Meter(10)
     assert o.analyze_scene(m, make_image(1, size=(3000, 2000))) == analysis

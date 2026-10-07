@@ -23,7 +23,6 @@ from .conftest import FakeClient, fake_response, fake_usage
 SCENE = Scene(
     summary="海边高层俯瞰",
     elements=[Element(name="海景", description="看到海", weight=1.0), Element(name="高层", description="俯瞰", weight=0.6)],
-    keywords=["海景房"],
 )
 
 
@@ -111,7 +110,7 @@ def test_config_sets_media_resolution_thinking_and_schema(tmp_settings):
 
 
 def test_analyze_scene_uses_high_res_and_retries_bad_output(tmp_settings):
-    good = SceneAnalysis(summary="s", elements=SCENE.elements, keywords=["k"])
+    good = SceneAnalysis(summary="s", elements=SCENE.elements)
     g, models = make(tmp_settings, [fake_response(text="乱码"), fake_response(parsed=good)])
     m = Meter(10)
     assert g.analyze_scene(m, b"jpg") is good
@@ -134,7 +133,7 @@ def test_api_error_becomes_gemini_error_with_hint(tmp_settings):
 
 
 def test_minimal_thinking_falls_back_to_low(tmp_settings):
-    good = SceneAnalysis(summary="s", elements=SCENE.elements, keywords=[])
+    good = SceneAnalysis(summary="s", elements=SCENE.elements)
     g, models = make(tmp_settings, [api_error(400, "thinking_level MINIMAL is not supported"), fake_response(parsed=good)])
     g.analyze_scene(Meter(10), b"jpg")
     assert models.calls[1].config.thinking_config.thinking_level == types.ThinkingLevel.LOW

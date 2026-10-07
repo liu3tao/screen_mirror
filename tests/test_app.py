@@ -35,7 +35,7 @@ class FakeGemini(Gemini):
         meter.add(1000, 100, image_tokens=1120, n_images=1, media_res="high")
         if self.fail_analyze:
             raise self.fail_analyze
-        return SceneAnalysis(summary="海边高层", elements=ELEMENTS, keywords=["海景房 落地窗"])
+        return SceneAnalysis(summary="海边高层", elements=ELEMENTS)
 
     def find_regions(self, meter, scene, scopes):
         meter.before_call()
@@ -125,7 +125,7 @@ def test_full_flow(env):
     d = upload(client)
     run_id = d["state"]["id"]
     assert d["state"]["status"] == "analyzed" and d["scene"]["summary"] == "海边高层"
-    assert d["scene"]["use_generic_keywords"] is False
+    assert "keywords" not in d["scene"]
     assert client.get(f"/files/{run_id}/ref.jpg").headers["content-type"] == "image/jpeg"
 
     # 编辑场景
@@ -167,19 +167,6 @@ def test_full_flow(env):
     # run 历史
     runs = client.get("/api/runs").json()
     assert runs[0]["id"] == run_id and runs[0]["status"] == "done"
-
-
-def test_generic_keywords_toggle(env):
-    client, _, engine = env
-    d = upload(client)
-    run_id = d["state"]["id"]
-    scene = d["scene"]
-    scene["use_generic_keywords"] = True
-    client.put(f"/api/runs/{run_id}/scene", json=scene)
-    assert client.post(f"/api/runs/{run_id}/search").status_code == 202
-    assert engine.queries == [("海景房 落地窗", "wt-wt")]
-    items = client.get(f"/api/runs/{run_id}").json()["state"]["items"]
-    assert items and {it["region_label"] for it in items} == {"地区未知"}
 
 
 def test_analyze_error_returns_hint(env):
@@ -243,7 +230,7 @@ def test_full_flow_with_ollama_backend(tmp_settings):
         title = body["format"].get("title")
         images = body["messages"][0]["images"]
         if title == "SceneAnalysis":
-            out = {"summary": "海边", "elements": [{"name": "海景", "description": "d", "weight": 1.0}], "keywords": ["海景房"]}
+            out = {"summary": "海边", "elements": [{"name": "海景", "description": "d", "weight": 1.0}]}
         elif title == "RegionsOut":
             out = {"regions": [{"city": "热海", "district": "", "reason": "r", "months": "", "keywords": ["熱海 民泊"], "search_region": "jp-jp"}]}
         else:
@@ -276,3 +263,20 @@ def test_full_flow_with_ollama_backend(tmp_settings):
     assert st["status"] == "done", st["error"]
     assert len(st["items"]) == 5 and all(it["score"] == 7.0 for it in st["items"])
     assert st["usage"]["usd"] == 0 and st["usage"]["calls"] == 3
+
+
+def test_old_scene_with_generic_keywords_still_loads(env):
+    """v0.11 之前保存的 scene.json 带 keywords / use_generic_keywords，应被忽略。"""
+    client, _, _ = env
+    run_id = upload(client)["state"]["id"]
+    store = client.app.state.store
+    p = store.dir(run_id) / "scene.json"
+    import json
+
+    old = json.loads(p.read_text(encoding="utf-8"))
+    old.update(keywords=["海景房"], use_generic_keywords=True)
+    p.write_text(json.dumps(old, ensure_ascii=False), encoding="utf-8")
+    d = client.get(f"/api/runs/{run_id}").json()
+    assert d["scene"]["summary"] == "海边高层" and "use_generic_keywords" not in d["scene"]
+    # 没勾地区仍不能搜（不会退回到通用关键词）
+    assert client.post(f"/api/runs/{run_id}/search").status_code == 400

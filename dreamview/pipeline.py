@@ -17,7 +17,6 @@ from .search import ImageSearch, Throttle, classify_source, search_with_retry
 from .store import RunStore, log_json
 
 KEYWORDS_PER_REGION = 3
-UNKNOWN_REGION = "地区未知"
 
 
 @dataclass
@@ -29,17 +28,13 @@ class Query:
 
 
 def build_queries(scene: Scene, regions: RegionsState) -> list[Query]:
-    """勾选地区 × 2–3 条关键词；开启通用关键词时追加（地区未知、wt-wt）。"""
+    """勾选地区 × 2–3 条关键词。"""
     qs = []
     for r in regions.regions:
         if not r.selected:
             continue
         for kw in [k for k in r.keywords if k.strip()][:KEYWORDS_PER_REGION]:
             qs.append(Query(kw.strip(), r.id, r.label, r.search_region or "wt-wt"))
-    if scene.use_generic_keywords:
-        for kw in scene.keywords:
-            if kw.strip():
-                qs.append(Query(kw.strip(), "", UNKNOWN_REGION, "wt-wt"))
     return qs
 
 
@@ -88,7 +83,7 @@ def run_search_job(run_id: str, deps: JobDeps) -> None:
 def _search(state: RunState, scene: Scene, regions: RegionsState, deps: JobDeps, update, lg) -> list[WallItem]:
     queries = build_queries(scene, regions)
     if not queries:
-        raise ValueError("没有可搜索的关键词：请勾选至少一个地区，或开启通用关键词。")
+        raise ValueError("没有可搜索的关键词：请勾选至少一个有关键词的地区。")
     update(status="searching", stage=f"图片搜索（{deps.engine.name}）", progress=0.0, search_count=len(queries))
     found: list[WallItem] = []
     errors = []
