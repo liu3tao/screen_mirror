@@ -19,7 +19,10 @@ dependencies = [
 dreamview = "dreamview.app:main"
 
 [dependency-groups]
-dev = ["pytest>=8.0"]
+dev = [
+    "pytest>=8.0",
+    "httpx2>=2.0",  # starlette.testclient 需要
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -30,3 +33,7 @@ packages = ["dreamview"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = [
+    # google-genai 内部用了 Python 3.14 弃用的 typing._UnionGenericAlias（上游 2.28.0 未修）；只忽略这一条
+    "ignore:'_UnionGenericAlias' is deprecated:DeprecationWarning:google.genai.types",
+]
