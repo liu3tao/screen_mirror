@@ -33,7 +33,7 @@ function dreamview() {
     scopeFree: '',
     manual: { city: '', district: '', keywords: '', search_region: 'wt-wt' },
     filter: { min: 0, regions: [], sources: [] },
-    busy: { upload: false, scene: false, regions: false },
+    busy: { upload: false, scene: false, regions: false, stop: false },
     dragOver: false,
     error: '',
     hint: '',
@@ -193,6 +193,13 @@ function dreamview() {
       } catch (e) { this.fail(e); }
     },
 
+    async stopSearch() {
+      this.busy.stop = true;
+      try {
+        await api('POST', `/api/runs/${this.runId}/stop`);
+      } catch (e) { this.fail(e); this.busy.stop = false; }
+    },
+
     async reloadState() {
       const d = await api('GET', `/api/runs/${this.runId}`);
       this.apply(d, false);
@@ -206,6 +213,7 @@ function dreamview() {
           const d = await this.reloadState();
           if (!d.running && !ACTIVE.includes(d.state.status)) {
             this.stopPolling();
+            this.busy.stop = false;
             if (d.state.status === 'error') { this.error = d.state.error; this.hint = d.state.error_hint; }
             this.refreshRuns();
           }

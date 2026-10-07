@@ -41,7 +41,7 @@ def create_app(
     store = RunStore(s.runs_dir)
     gem = model or make_backend(s)
     deps_factory = deps_factory or make_deps_factory(s, store, gem, engine_factory or (lambda: make_search(s)))
-    running: set[str] = set()
+    running: dict[str, threading.Event] = {}  # run_id → 停止信号
     running_lock = threading.Lock()
 
     app = FastAPI(title="dreamview")
@@ -194,28 +194,44 @@ def create_app(
         queries = build_queries(store.load_scene(run_id), store.load_regions(run_id))
         if not queries:
             raise HTTPException(400, "没有可搜索的关键词：请勾选至少一个有关键词的地区。")
+        deps = deps_factory()
         with running_lock:
             if run_id in running:
                 raise HTTPException(409, "该 run 正在运行")
-            running.add(run_id)
+            running[run_id] = deps.cancel
         with store.lock:
             state = store.load_state(run_id)
             state.status, state.stage, state.progress = "searching", "排队", 0.0
             state.warnings = []
+            state.message = ""
             store.save_state(state)
 
         def job():
             try:
-                run_search_job(run_id, deps_factory())
+                run_search_job(run_id, deps)
             finally:
                 with running_lock:
-                    running.discard(run_id)
+                    running.pop(run_id, None)
 
         if run_jobs_inline:
             job()
         else:
             threading.Thread(target=job, name=f"job-{run_id}", daemon=True).start()
         return {"run_id": run_id, "queries": len(queries)}
+
+    @app.post("/api/runs/{run_id}/stop", status_code=202)
+    def stop_search(run_id: str):
+        store.dir(run_id)
+        with running_lock:
+            cancel = running.get(run_id)
+        if cancel is None:
+            raise HTTPException(409, "该 run 没有在运行")
+        cancel.set()
+        with store.lock:
+            state = store.load_state(run_id)
+            state.stage = "正在停止…"
+            store.save_state(state)
+        return {"run_id": run_id}
 
     return app
 
