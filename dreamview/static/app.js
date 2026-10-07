@@ -168,6 +168,14 @@ function dreamview() {
       return n;
     },
 
+    // 搜图按钮不可用时，告诉用户下一步做什么
+    searchHint() {
+      if (this.estimatedSearches() > 0) return '';
+      if (!this.regions || !this.regions.regions.length) return '请先在上方点「找地区」，再勾选要搜图的地区（或开启通用关键词）。';
+      if (!this.selectedCount()) return '请在上方地区卡片中勾选至少一个地区（或开启通用关键词）。';
+      return '已勾选的地区没有关键词：请在地区卡片里填写关键词。';
+    },
+
     isRunning() {
       return this.running || (this.state && ACTIVE.includes(this.state.status));
     },

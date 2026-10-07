@@ -25,7 +25,7 @@
   <template x-if="state"><span class="muted" x-text="usageText()"></span></template>
 </header>
 
-<div class="error" x-show="error" x-cloak>
+<div class="error toast" role="alert" x-show="error" x-cloak>
   <div x-text="error"></div>
   <div class="hint" x-show="hint" x-text="'提示：' + hint"></div>
   <button class="link" @click="error = ''; hint = ''">关闭</button>
@@ -77,6 +77,7 @@
   <div class="col">
     <label class="toggle"><input type="checkbox" x-model="scene.use_generic_keywords"> 启用通用关键词（关时只按地区关键词搜图）</label>
     <h3>搜索范围</h3>
+    <div class="muted small">只限定「找地区」在哪里找。选好后点「找地区」，再在地区卡片里勾选要搜图的地区。</div>
     <div class="chips">
       <template x-for="t in config.scope_tags" :key="t">
         <label class="chip" :class="{ on: scopes.includes(t) }">
@@ -141,8 +142,9 @@
 <section class="step">
   <h2>③ 照片墙</h2>
   <div class="row">
-    <button class="primary" @click="startSearch()" :disabled="isRunning()">搜图并打分</button>
+    <button class="primary" @click="startSearch()" :disabled="isRunning() || estimatedSearches() === 0">搜图并打分</button>
     <span class="muted" x-text="`已勾选 ${selectedCount()} 个地区，预计搜索 ${estimatedSearches()} 次`"></span>
+    <span class="search-hint" x-show="searchHint()" x-text="searchHint()"></span>
   </div>
   <template x-if="state && state.status !== 'created' && state.status !== 'analyzed'">
     <div>
