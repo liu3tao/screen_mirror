@@ -140,6 +140,7 @@
   <h2>③ 照片墙</h2>
   <div class="row">
     <button class="primary" @click="startSearch()" :disabled="isRunning() || estimatedSearches() === 0">搜图并打分</button>
+    <button @click="stopSearch()" x-show="isRunning()" :disabled="busy.stop" x-text="busy.stop ? '正在停止…' : '停止'"></button>
     <span class="muted" x-text="`已勾选 ${selectedCount()} 个地区，预计搜索 ${estimatedSearches()} 次`"></span>
     <span class="search-hint" x-show="searchHint()" x-text="searchHint()"></span>
   </div>
@@ -147,6 +148,7 @@
     <div>
       <div class="progress"><div :style="`width:${Math.round((state.progress || 0) * 100)}%`"></div></div>
       <div class="muted small" x-text="`${state.stage || state.status} · ${state.items.length} 张`"></div>
+      <div class="muted small" x-show="state.message" x-text="state.message"></div>
       <details x-show="state.search_errors.length"><summary x-text="`${state.search_errors.length} 次搜索失败（已跳过）`"></summary>
         <ul><template x-for="e in state.search_errors" :key="e"><li x-text="e"></li></template></ul>
       </details>

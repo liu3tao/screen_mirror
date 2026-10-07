@@ -142,3 +142,14 @@ def test_search_with_retry():
     assert search_with_retry(Flaky(1), th, "q", "wt-wt", 10) == ["ok"]
     with pytest.raises(RuntimeError):
         search_with_retry(Flaky(2), th, "q", "wt-wt", 10)
+
+
+def test_patch_ddgs_http2_headers_removes_connection():
+    from ddgs.engines.duckduckgo_images import DuckduckgoImages
+
+    from dreamview.search import patch_ddgs_http2_headers
+
+    patch_ddgs_http2_headers()
+    patch_ddgs_http2_headers()  # 幂等
+    keys = {k.lower() for k in DuckduckgoImages.headers_update}
+    assert "connection" not in keys and "referer" in keys

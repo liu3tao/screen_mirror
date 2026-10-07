@@ -280,3 +280,87 @@ def test_old_scene_with_generic_keywords_still_loads(env):
     assert d["scene"]["summary"] == "海边高层" and "use_generic_keywords" not in d["scene"]
     # 没勾地区仍不能搜（不会退回到通用关键词）
     assert client.post(f"/api/runs/{run_id}/search").status_code == 400
+
+
+def test_stop_without_running_job_is_409(env):
+    client, _, _ = env
+    run_id = upload(client)["state"]["id"]
+    assert client.post(f"/api/runs/{run_id}/stop").status_code == 409
+
+
+def test_stop_during_scoring_keeps_scored_items(tmp_settings):
+    """打分到第 2 批时用户点停止：第 1 批保留分数，其余标 unscored，状态 stopped。"""
+    import threading
+
+    tmp_settings.max_images = 20
+    gem = FakeGemini(tmp_settings)
+    holder = {}
+    cancel = threading.Event()
+    orig = gem.score_batch
+
+    def score_then_stop(meter, elements, thumbs):
+        out = orig(meter, elements, thumbs)
+        cancel.set()  # 第一批完成后「点停止」
+        return out
+
+    gem.score_batch = score_then_stop
+
+    def deps_factory():
+        http = httpx.Client(transport=thumb_transport(), trust_env=False)
+        return JobDeps(tmp_settings, holder["app"].state.store, gem, FakeEngine(), http, Throttle(0), cancel)
+
+    app = create_app(tmp_settings, model=gem, deps_factory=deps_factory, run_jobs_inline=True)
+    holder["app"] = app
+    client = TestClient(app)
+    run_id = upload(client)["state"]["id"]
+    regions = client.post(f"/api/runs/{run_id}/regions", json={"scopes": []}).json()["regions"]
+    for r in regions:
+        r["selected"] = True
+    client.put(f"/api/runs/{run_id}/regions", json={"regions": regions})
+    assert client.post(f"/api/runs/{run_id}/search").status_code == 202
+    st = client.get(f"/api/runs/{run_id}").json()["state"]
+    assert st["status"] == "stopped" and st["message"]
+    scored = [it for it in st["items"] if it["status"] == "scored"]
+    assert len(scored) == 8 and len(st["items"]) > 8
+    assert all(it["status"] == "unscored" for it in st["items"][8:])
+    assert gem.score_calls == 1
+
+
+def test_stop_endpoint_cancels_running_job(tmp_settings):
+    """真实线程：搜索阶段点停止。"""
+    import threading
+    import time
+
+    started, release = threading.Event(), threading.Event()
+
+    class SlowEngine(FakeEngine):
+        def search(self, query, region, max_results):
+            started.set()
+            release.wait(5)
+            return super().search(query, region, max_results)
+
+    gem, holder = FakeGemini(tmp_settings), {}
+
+    def deps_factory():
+        http = httpx.Client(transport=thumb_transport(), trust_env=False)
+        return JobDeps(tmp_settings, holder["app"].state.store, gem, SlowEngine(), http, Throttle(0))
+
+    app = create_app(tmp_settings, model=gem, deps_factory=deps_factory)
+    holder["app"] = app
+    client = TestClient(app)
+    run_id = upload(client)["state"]["id"]
+    regions = client.post(f"/api/runs/{run_id}/regions", json={"scopes": []}).json()["regions"]
+    for r in regions:
+        r["selected"] = True
+    client.put(f"/api/runs/{run_id}/regions", json={"regions": regions})
+    assert client.post(f"/api/runs/{run_id}/search").status_code == 202
+    assert started.wait(5)
+    assert client.post(f"/api/runs/{run_id}/stop").status_code == 202
+    release.set()
+    for _ in range(50):
+        d = client.get(f"/api/runs/{run_id}").json()
+        if not d["running"]:
+            break
+        time.sleep(0.1)
+    assert d["state"]["status"] == "stopped" and not d["running"]
+    assert gem.score_calls == 0

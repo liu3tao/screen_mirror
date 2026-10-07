@@ -35,12 +35,24 @@ def _int(v) -> int:
         return 0
 
 
+def patch_ddgs_http2_headers() -> None:
+    """ddgs 9.16 的 DuckDuckGo 图片引擎带 `Connection: keep-alive`；primp 2.x 走 HTTP/2 时
+    该头非法，请求失败并报 "user error: malformed headers"。去掉该头（上游修复后可删）。"""
+    from ddgs.engines.duckduckgo_images import DuckduckgoImages
+
+    headers = DuckduckgoImages.headers_update
+    if any(k.lower() == "connection" for k in headers):
+        DuckduckgoImages.headers_update = {k: v for k, v in headers.items() if k.lower() != "connection"}
+
+
 class DdgsSearch:
     name = "DuckDuckGo"
 
     def __init__(self, ddgs=None):
         if ddgs is None:
             from ddgs import DDGS
+
+            patch_ddgs_http2_headers()
 
             ddgs = DDGS(timeout=15)
         self._ddgs = ddgs

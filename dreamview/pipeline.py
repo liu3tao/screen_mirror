@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import httpx
 
@@ -46,6 +47,16 @@ class JobDeps:
     engine: ImageSearch
     http: httpx.Client
     throttle: Throttle
+    cancel: threading.Event = field(default_factory=threading.Event)
+
+
+class Cancelled(Exception):
+    """用户点了「停止」。"""
+
+
+def _check(deps: JobDeps) -> None:
+    if deps.cancel.is_set():
+        raise Cancelled
 
 
 def run_search_job(run_id: str, deps: JobDeps) -> None:
@@ -69,6 +80,15 @@ def run_search_job(run_id: str, deps: JobDeps) -> None:
         candidates = _search(state, scene, regions, deps, update, lg)
         _download(run_id, state, candidates, deps, update, lg)
         _score(state, scene, deps, update, lg)
+    except Cancelled:
+        with store.lock:
+            for it in state.items:
+                if it.status == "pending":
+                    it.status = "unscored"
+            state.items = sort_wall(state.items)
+        update(status="stopped", stage="已停止", message="已按要求停止；已打分的图片保留。")
+        log_json(lg, "stopped", n_items=len(state.items))
+        return
     except Exception as e:  # noqa: BLE001 - 任何异常都要落到 UI
         lg.exception("job failed")
         hint = getattr(e, "hint", "")
@@ -88,6 +108,7 @@ def _search(state: RunState, scene: Scene, regions: RegionsState, deps: JobDeps,
     found: list[WallItem] = []
     errors = []
     for i, q in enumerate(queries):
+        _check(deps)
         try:
             hits = search_with_retry(deps.engine, deps.throttle, q.text, q.search_region, deps.settings.search_per_query)
         except Exception as e:  # noqa: BLE001 - 搜索失败跳过
@@ -138,6 +159,7 @@ def _download(run_id: str, state: RunState, candidates: list[WallItem], deps: Jo
     failed = 0
     with ThreadPoolExecutor(max_workers=s.download_workers) as pool:
         for chunk in images.chunks(candidates, s.download_workers * 4):
+            _check(deps)
             if len(index.kept) >= s.max_images:
                 break
             for item, res in pool.map(fetch, chunk):
@@ -177,6 +199,7 @@ def _score(state: RunState, scene: Scene, deps: JobDeps, update, lg) -> None:
     batches = list(images.chunks(list(state.items), s.score_batch_size))
     update(status="scoring", stage="打分", progress=0.5)
     for bi, batch in enumerate(batches):
+        _check(deps)
         data = [(run_dir / it.thumb_file).read_bytes() for it in batch]
         try:
             err = score_items(batch, elements, data, lambda imgs: deps.model.score_batch(meter, elements, imgs))

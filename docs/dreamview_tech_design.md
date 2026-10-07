@@ -122,6 +122,7 @@ flowchart TD
 | `POST /api/runs/{id}/regions` | 传入搜索范围，grounding 找地区 |
 | `PUT /api/runs/{id}/regions` | 保存勾选 / 修改 |
 | `POST /api/runs/{id}/search` | 后台任务：搜索 + 下载 + 打分 |
+| `POST /api/runs/{id}/stop` | 停止后台任务（在查询、下载批、打分批之间检查）；已打分的保留，其余标 `unscored`，状态 `stopped` |
 | `GET /api/runs/{id}` | 状态、进度、结果 |
 | `POST /api/audit` | M2 |
 
@@ -281,6 +282,7 @@ flowchart TD
 | `minimal` 思考档在该模型不可用 | 回退 `low`；首跑记录思考 token |
 | AI Pro 额度不可用 | 每次约 0.31 USD，自付可接受 |
 | `ddgs` 限流或失效 | 间隔 + 重试 1 次；切 Brave |
+| `ddgs` 9.16 + primp 2.x 走 HTTP/2 时，DuckDuckGo 图片请求带非法的 `Connection` 头，报 "malformed headers" | 启动时从该引擎请求头中去掉 `Connection`（`search.patch_ddgs_http2_headers`）；上游修复后删除 |
 | 云端会话无法访问图片搜索站点 | 云端用 fixture；联网搜图只在本机验收（3.11） |
 | 中文站覆盖差 | 本地语言关键词；对比两家；接受 |
 | 缩略图误判 | 用户肉眼复核；原图复评待办 |
