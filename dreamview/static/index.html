@@ -25,7 +25,7 @@
   <template x-if="state"><span class="muted" x-text="usageText()"></span></template>
 </header>
 
-<div class="error" x-show="error" x-cloak>
+<div class="error toast" role="alert" x-show="error" x-cloak>
   <div x-text="error"></div>
   <div class="hint" x-show="hint" x-text="'提示：' + hint"></div>
   <button class="link" @click="error = ''; hint = ''">关闭</button>
@@ -68,15 +68,12 @@
       </tbody>
     </table>
     <button @click="scene.elements.push({ name: '', description: '', weight: 0.5 })">＋ 要素</button>
-    <label>通用关键词（每行一条，不含地名）
-      <textarea rows="4" :value="scene.keywords.join('\n')" @input="scene.keywords = lines($event.target.value)"></textarea>
-    </label>
     <button @click="saveScene()" :disabled="busy.scene">保存场景</button>
   </div>
 
   <div class="col">
-    <label class="toggle"><input type="checkbox" x-model="scene.use_generic_keywords"> 启用通用关键词（关时只按地区关键词搜图）</label>
     <h3>搜索范围</h3>
+    <div class="muted small">只限定「找地区」在哪里找。选好后点「找地区」，再在地区卡片里勾选要搜图的地区。</div>
     <div class="chips">
       <template x-for="t in config.scope_tags" :key="t">
         <label class="chip" :class="{ on: scopes.includes(t) }">
@@ -94,6 +91,7 @@
           <h3>候选地区</h3>
           <button class="link" @click="setAll(true)">全选</button>
           <button class="link" @click="setAll(false)">全不选</button>
+          <span class="muted small" x-show="!selectedCount()">勾选地区后，下方出现 ③ 照片墙</span>
         </div>
         <template x-for="(r, i) in regions.regions" :key="r.id">
           <div class="region" :class="{ on: r.selected }">
@@ -138,11 +136,12 @@
 </section>
 
 <!-- ③ 照片墙 -->
-<section class="step">
+<section class="step" x-show="showWall()">
   <h2>③ 照片墙</h2>
   <div class="row">
-    <button class="primary" @click="startSearch()" :disabled="isRunning()">搜图并打分</button>
+    <button class="primary" @click="startSearch()" :disabled="isRunning() || estimatedSearches() === 0">搜图并打分</button>
     <span class="muted" x-text="`已勾选 ${selectedCount()} 个地区，预计搜索 ${estimatedSearches()} 次`"></span>
+    <span class="search-hint" x-show="searchHint()" x-text="searchHint()"></span>
   </div>
   <template x-if="state && state.status !== 'created' && state.status !== 'analyzed'">
     <div>

@@ -32,6 +32,8 @@ label { display: block; margin: 8px 0; }
 @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
 .error, .warning { margin: 8px 16px; padding: 8px 12px; border-radius: 6px; }
 .error { background: var(--err-bg); color: var(--err); }
+.error.toast { position: fixed; z-index: 10; top: 56px; left: 50%; transform: translateX(-50%); width: min(720px, calc(100% - 32px)); margin: 0; box-shadow: 0 4px 16px rgba(0, 0, 0, .15); }
+.search-hint { color: var(--err); font-size: 13px; }
 .warning { background: var(--warn-bg); }
 .hint { color: var(--fg); margin-top: 4px; }
 .dropzone { display: flex; align-items: center; justify-content: center; height: 200px; border: 2px dashed var(--line); border-radius: 12px; cursor: pointer; color: var(--muted); }

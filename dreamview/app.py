@@ -193,7 +193,7 @@ def create_app(
         store.dir(run_id)
         queries = build_queries(store.load_scene(run_id), store.load_regions(run_id))
         if not queries:
-            raise HTTPException(400, "没有可搜索的关键词：请勾选至少一个地区，或开启通用关键词。")
+            raise HTTPException(400, "没有可搜索的关键词：请勾选至少一个有关键词的地区。")
         with running_lock:
             if run_id in running:
                 raise HTTPException(409, "该 run 正在运行")
