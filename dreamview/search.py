@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from .config import SOURCE_RULES, Settings
+from .config import RENTAL_SITES, SOURCE_RULES, Settings
 
 
 @dataclass
@@ -214,3 +214,14 @@ def classify_source(page_url: str) -> str:
         if _host_matches(host, domain) and (not prefix or path.startswith("/" + prefix)):
             return label
     return "其他"
+
+
+def is_rental_url(page_url: str) -> bool:
+    """来源页是否为短租 / 酒店网站（可租住）。"""
+    return classify_source(page_url) == "房源"
+
+
+def rental_sites_for(search_region: str, n: int) -> list[str]:
+    """按 ddgs 区域代码（如 jp-jp）的国家部分取前 n 个租住网站；未知国家用通用列表。"""
+    country = (search_region or "").lower().split("-")[0]
+    return RENTAL_SITES.get(country, RENTAL_SITES["*"])[:n]

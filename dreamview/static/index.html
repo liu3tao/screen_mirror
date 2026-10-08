@@ -25,6 +25,8 @@
   <template x-if="state"><span class="muted" x-text="usageText()"></span></template>
 </header>
 
+<main>
+
 <div class="error toast" role="alert" x-show="error" x-cloak>
   <div x-text="error"></div>
   <div class="hint" x-show="hint" x-text="'提示：' + hint"></div>
@@ -48,9 +50,9 @@
 
 <template x-if="runId && scene">
 <div>
-<!-- ② 场景 + 地区 -->
-<section class="step two-col">
-  <div class="col">
+<!-- ② 场景 + 地区（单栏，自上而下） -->
+<section class="step">
+  <div class="block">
     <h2>② 场景</h2>
     <img class="ref" :src="`/files/${runId}/ref.jpg`" alt="参考图">
     <label>摘要<textarea rows="2" x-model="scene.summary"></textarea></label>
@@ -71,7 +73,7 @@
     <button @click="saveScene()" :disabled="busy.scene">保存场景</button>
   </div>
 
-  <div class="col">
+  <div class="block">
     <h3>搜索范围</h3>
     <div class="muted small">只限定「找地区」在哪里找。选好后点「找地区」，再在地区卡片里勾选要搜图的地区。</div>
     <div class="chips">
@@ -141,13 +143,14 @@
   <div class="row">
     <button class="primary" @click="startSearch()" :disabled="isRunning() || estimatedSearches() === 0">搜图并打分</button>
     <button @click="stopSearch()" x-show="isRunning()" :disabled="busy.stop" x-text="busy.stop ? '正在停止…' : '停止'"></button>
-    <span class="muted" x-text="`已勾选 ${selectedCount()} 个地区，预计搜索 ${estimatedSearches()} 次`"></span>
+    <span class="muted" x-text="`已勾选 ${selectedCount()} 个地区，预计搜索 ${estimatedSearches()} 次${config.site_filter === 'rental' ? '（只搜短租 / 酒店网站）' : ''}`"></span>
     <span class="search-hint" x-show="searchHint()" x-text="searchHint()"></span>
   </div>
   <template x-if="state && state.status !== 'created' && state.status !== 'analyzed'">
     <div>
       <div class="progress"><div :style="`width:${Math.round((state.progress || 0) * 100)}%`"></div></div>
       <div class="muted small" x-text="`${state.stage || state.status} · ${state.items.length} 张`"></div>
+      <div class="muted small" x-show="state.filtered_out" x-text="`已过滤 ${state.filtered_out} 张非短租 / 酒店网站的图片`"></div>
       <div class="muted small" x-show="state.message" x-text="state.message"></div>
       <details x-show="state.search_errors.length"><summary x-text="`${state.search_errors.length} 次搜索失败（已跳过）`"></summary>
         <ul><template x-for="e in state.search_errors" :key="e"><li x-text="e"></li></template></ul>
@@ -161,9 +164,13 @@
     <template x-for="r in wallRegions()" :key="r">
       <label class="chip" :class="{ on: filter.regions.includes(r) }"><input type="checkbox" :value="r" x-model="filter.regions" hidden><span x-text="r"></span></label>
     </template>
-    <span>来源：</span>
-    <template x-for="t in ['房源', '种草帖', '其他']" :key="t">
-      <label class="chip" :class="{ on: filter.sources.includes(t) }"><input type="checkbox" :value="t" x-model="filter.sources" hidden><span x-text="t"></span></label>
+    <template x-if="config.site_filter !== 'rental'">
+      <span class="row">
+        <span>来源：</span>
+        <template x-for="t in ['房源', '种草帖', '其他']" :key="t">
+          <label class="chip" :class="{ on: filter.sources.includes(t) }"><input type="checkbox" :value="t" x-model="filter.sources" hidden><span x-text="t"></span></label>
+        </template>
+      </span>
     </template>
     <span class="muted" x-text="`显示 ${wall().length} 张`"></span>
   </div>
@@ -187,6 +194,8 @@
 </section>
 </div>
 </template>
+
+</main>
 
 </body>
 </html>

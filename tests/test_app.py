@@ -146,8 +146,18 @@ def test_full_flow(env):
     assert client.put(f"/api/runs/{run_id}/regions", json={"regions": regions["regions"]}).status_code == 200
 
     r = client.post(f"/api/runs/{run_id}/search")
-    assert r.status_code == 202 and r.json()["queries"] == 3
-    assert engine.queries == [("熱海 オーシャンビュー", "jp-jp"), ("熱海 民泊", "jp-jp"), ("墾丁 海景民宿", "tw-tzh")]
+    assert r.status_code == 202 and r.json()["queries"] == 8
+    # 默认 SITE_FILTER=rental：每个地区 4 个租住网站，关键词轮换
+    assert engine.queries == [
+        ("熱海 オーシャンビュー site:airbnb.jp", "jp-jp"),
+        ("熱海 民泊 site:booking.com", "jp-jp"),
+        ("熱海 オーシャンビュー site:jalan.net", "jp-jp"),
+        ("熱海 民泊 site:travel.rakuten.co.jp", "jp-jp"),
+        ("墾丁 海景民宿 site:booking.com", "tw-tzh"),
+        ("墾丁 海景民宿 site:agoda.com", "tw-tzh"),
+        ("墾丁 海景民宿 site:airbnb.com.tw", "tw-tzh"),
+        ("墾丁 海景民宿 site:trip.com", "tw-tzh"),
+    ]
 
     d = client.get(f"/api/runs/{run_id}").json()
     st = d["state"]
@@ -158,6 +168,7 @@ def test_full_flow(env):
     assert scores == sorted(scores, reverse=True)
     assert {it["region_label"] for it in st["items"]} == {"热海", "垦丁"}
     assert all(it["source_type"] == "房源" for it in st["items"])
+    assert st["filtered_out"] == 8 * 2  # 每次查询的 dup.test、broken.test 两条非租住网站结果被过滤
     assert gem.score_calls == 2  # 12 张 / 8 张一批
     assert st["usage"]["calls"] == 1 + 1 + 2
     assert st["warnings"] == []
@@ -364,3 +375,56 @@ def test_stop_endpoint_cancels_running_job(tmp_settings):
         time.sleep(0.1)
     assert d["state"]["status"] == "stopped" and not d["running"]
     assert gem.score_calls == 0
+
+
+def test_site_filter_off_keeps_all_sources(tmp_settings):
+    tmp_settings.site_filter = "off"
+    tmp_settings.max_images = 50
+
+    class MixedEngine(FakeEngine):
+        def search(self, query, region, max_results):
+            hits = super().search(query, region, max_results)
+            n = len(self.queries)
+            return hits + [ImageHit(page_url=f"https://example.com/{n}", thumb_url=f"https://thumbs.test/9/{n}.png")]
+
+    gem, engine, holder = FakeGemini(tmp_settings), MixedEngine(), {}
+
+    def deps_factory():
+        http = httpx.Client(transport=thumb_transport(), trust_env=False)
+        return JobDeps(tmp_settings, holder["app"].state.store, gem, engine, http, Throttle(0))
+
+    app = create_app(tmp_settings, model=gem, deps_factory=deps_factory, run_jobs_inline=True)
+    holder["app"] = app
+    client = TestClient(app)
+    run_id = upload(client)["state"]["id"]
+    regions = client.post(f"/api/runs/{run_id}/regions", json={"scopes": []}).json()["regions"]
+    regions[0]["selected"] = True
+    client.put(f"/api/runs/{run_id}/regions", json={"regions": regions})
+    assert client.post(f"/api/runs/{run_id}/search").json()["queries"] == 2
+    assert engine.queries == [("熱海 オーシャンビュー", "jp-jp"), ("熱海 民泊", "jp-jp")]
+    st = client.get(f"/api/runs/{run_id}").json()["state"]
+    assert st["filtered_out"] == 0
+    assert "其他" in {it["source_type"] for it in st["items"]}  # example.com 的结果被保留
+
+
+def test_all_results_filtered_gives_clear_error(tmp_settings):
+    class NonRentalEngine(FakeEngine):
+        def search(self, query, region, max_results):
+            return [ImageHit(page_url=f"https://suumo.jp/{k}", thumb_url=f"https://thumbs.test/1/{k}.png") for k in range(5)]
+
+    gem, holder = FakeGemini(tmp_settings), {}
+
+    def deps_factory():
+        http = httpx.Client(transport=thumb_transport(), trust_env=False)
+        return JobDeps(tmp_settings, holder["app"].state.store, gem, NonRentalEngine(), http, Throttle(0))
+
+    app = create_app(tmp_settings, model=gem, deps_factory=deps_factory, run_jobs_inline=True)
+    holder["app"] = app
+    client = TestClient(app)
+    run_id = upload(client)["state"]["id"]
+    regions = client.post(f"/api/runs/{run_id}/regions", json={"scopes": []}).json()["regions"]
+    regions[0]["selected"] = True
+    client.put(f"/api/runs/{run_id}/regions", json={"regions": regions})
+    client.post(f"/api/runs/{run_id}/search")
+    st = client.get(f"/api/runs/{run_id}").json()["state"]
+    assert st["status"] == "error" and "SITE_FILTER=off" in st["error"] and st["filtered_out"] == 20

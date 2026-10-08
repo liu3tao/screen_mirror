@@ -36,10 +36,34 @@ SOURCE_RULES: dict[str, str] = {
     "tujia.com": "房源",
     "vrbo.com": "房源",
     "expedia.": "房源",
+    "jalan.net": "房源",
+    "travel.rakuten.co.jp": "房源",
+    "ikyu.com": "房源",
+    "relux.jp": "房源",
+    "yanolja.com": "房源",
+    "traveloka.com": "房源",
+    "hotels.com": "房源",
+    "hotel.meituan.com": "房源",
     "xiaohongshu.com": "种草帖",
     "mafengwo.cn": "种草帖",
     "dianping.com": "种草帖",
     "ctrip.com/travels": "种草帖",
+}
+
+# 可租住网站（短租 + 酒店），按 ddgs 区域代码的国家部分选取，按优先级排列。
+# SITE_FILTER=rental 时：每个勾选地区按此表各发一条「关键词 site:域名」查询，
+# 结果再按来源规则过滤，只留「房源」（表中域名均须在 SOURCE_RULES 中标为房源）。
+RENTAL_SITES: dict[str, list[str]] = {
+    "jp": ["airbnb.jp", "booking.com", "jalan.net", "travel.rakuten.co.jp", "agoda.com"],
+    "cn": ["tujia.com", "ctrip.com", "trip.com", "booking.com"],
+    "tw": ["booking.com", "agoda.com", "airbnb.com.tw", "trip.com"],
+    "hk": ["booking.com", "agoda.com", "airbnb.com", "trip.com"],
+    "kr": ["airbnb.co.kr", "booking.com", "agoda.com", "yanolja.com"],
+    "th": ["agoda.com", "booking.com", "airbnb.com", "traveloka.com"],
+    "vn": ["agoda.com", "booking.com", "airbnb.com", "traveloka.com"],
+    "id": ["agoda.com", "booking.com", "airbnb.com", "traveloka.com"],
+    "us": ["airbnb.com", "vrbo.com", "booking.com", "expedia.com"],
+    "*": ["airbnb.com", "booking.com", "vrbo.com", "agoda.com"],
 }
 
 # Gemini 3 每图 token 数（按 media_resolution 档位）
@@ -73,6 +97,8 @@ class Settings:
     thinking_level: str = "minimal"
     thinking_level_regions: str = "low"
     image_search: str = "ddgs"  # ddgs | brave
+    site_filter: str = "rental"  # rental：只搜、只留短租 / 酒店网站；off：不限
+    sites_per_region: int = 4
     ddgs_backend: str = "bing"  # ddgs 内部引擎：bing | duckduckgo | bing,duckduckgo（DuckDuckGo 常返回 403）
     brave_api_key: str = ""
     search_interval_s: float = 1.5
@@ -115,6 +141,8 @@ class Settings:
             thinking_level_regions=_env("THINKING_LEVEL_REGIONS", cls.thinking_level_regions),
             image_search=_env("IMAGE_SEARCH", cls.image_search),
             ddgs_backend=_env("DDGS_BACKEND", cls.ddgs_backend).lower(),
+            site_filter=_env("SITE_FILTER", cls.site_filter).lower(),
+            sites_per_region=int(_env("SITES_PER_REGION", str(cls.sites_per_region))),
             brave_api_key=_env("BRAVE_API_KEY", ""),
             search_interval_s=float(_env("SEARCH_INTERVAL_S", str(cls.search_interval_s))),
             max_images=int(_env("MAX_IMAGES", str(cls.max_images))),

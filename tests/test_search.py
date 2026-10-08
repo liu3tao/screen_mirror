@@ -178,3 +178,59 @@ def test_make_search_uses_settings():
     assert image_source_name(s) == "DuckDuckGo"
     assert image_source_name(Settings()) == "Bing"
     assert image_source_name(Settings(image_search="brave", brave_api_key="k")) == "Brave"
+
+
+def test_every_rental_site_is_classified_as_rental():
+    from dreamview.config import RENTAL_SITES
+    from dreamview.search import is_rental_url
+
+    for country, sites in RENTAL_SITES.items():
+        for site in sites:
+            assert is_rental_url(f"https://www.{site}/rooms/1"), (country, site)
+
+
+@pytest.mark.parametrize(
+    "url,ok",
+    [
+        ("https://www.airbnb.jp/rooms/1", True),
+        ("https://www.jalan.net/yad123/", True),
+        ("https://travel.rakuten.co.jp/HOTEL/1/", True),
+        ("https://hotels.ctrip.com/hotel/1.html", True),
+        ("https://you.ctrip.com/travels/1.html", False),  # 携程游记不是可租住页面
+        ("https://suumo.jp/chintai/1/", False),  # 不动产网站
+        ("https://www.homes.co.jp/chintai/1", False),
+        ("https://www.xiaohongshu.com/explore/1", False),
+        ("https://example.com/a", False),
+    ],
+)
+def test_is_rental_url(url, ok):
+    from dreamview.search import is_rental_url
+
+    assert is_rental_url(url) is ok
+
+
+def test_rental_sites_for_region():
+    from dreamview.search import rental_sites_for
+
+    assert rental_sites_for("jp-jp", 2) == ["airbnb.jp", "booking.com"]
+    assert rental_sites_for("cn-zh", 4)[0] == "tujia.com"
+    assert rental_sites_for("wt-wt", 3) == ["airbnb.com", "booking.com", "vrbo.com"]
+    assert rental_sites_for("", 4) == rental_sites_for("xx-yy", 4)
+
+
+def test_build_queries_rental_rotates_keywords():
+    from dreamview.config import Settings
+    from dreamview.pipeline import build_queries
+    from dreamview.schemas import Region, RegionsState, Scene
+
+    regions = RegionsState(
+        regions=[
+            Region(id="r1", city="a", keywords=["k1", "k2"], search_region="it-it", selected=True),
+            Region(id="r2", city="b", keywords=["x"], selected=False),
+            Region(id="r3", city="c", keywords=[" "], selected=True),  # 无有效关键词：跳过
+        ]
+    )
+    qs = build_queries(Scene(), regions, Settings(sites_per_region=3))
+    assert [q.text for q in qs] == ["k1 site:airbnb.com", "k2 site:booking.com", "k1 site:vrbo.com"]
+    off = build_queries(Scene(), regions, Settings(site_filter="off"))
+    assert [q.text for q in off] == ["k1", "k2"]

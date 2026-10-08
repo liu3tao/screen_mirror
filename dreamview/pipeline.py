@@ -14,7 +14,7 @@ from .config import Settings
 from .llm import CallLimitExceeded, Meter, ModelBackend, ModelError
 from .schemas import RegionsState, RunState, Scene, WallItem
 from .scoring import score_items, sort_wall
-from .search import ImageSearch, Throttle, classify_source, search_with_retry
+from .search import ImageSearch, Throttle, classify_source, is_rental_url, rental_sites_for, search_with_retry
 from .store import RunStore, log_json
 
 KEYWORDS_PER_REGION = 3
@@ -28,14 +28,24 @@ class Query:
     search_region: str
 
 
-def build_queries(scene: Scene, regions: RegionsState) -> list[Query]:
-    """勾选地区 × 2–3 条关键词。"""
+def build_queries(scene: Scene, regions: RegionsState, settings: Settings | None = None) -> list[Query]:
+    """site_filter=off：勾选地区 × 2–3 条关键词。
+    site_filter=rental（默认）：勾选地区 × N 个租住网站，每条为「关键词 site:域名」，关键词轮换使用。"""
+    rental = settings is None or settings.site_filter == "rental"
+    n_sites = settings.sites_per_region if settings else Settings.sites_per_region
     qs = []
     for r in regions.regions:
         if not r.selected:
             continue
-        for kw in [k for k in r.keywords if k.strip()][:KEYWORDS_PER_REGION]:
-            qs.append(Query(kw.strip(), r.id, r.label, r.search_region or "wt-wt"))
+        kws = [k.strip() for k in r.keywords if k.strip()][:KEYWORDS_PER_REGION]
+        if not kws:
+            continue
+        region = r.search_region or "wt-wt"
+        if rental:
+            for i, site in enumerate(rental_sites_for(region, n_sites)):
+                qs.append(Query(f"{kws[i % len(kws)]} site:{site}", r.id, r.label, region))
+        else:
+            qs.extend(Query(kw, r.id, r.label, region) for kw in kws)
     return qs
 
 
@@ -75,6 +85,7 @@ def run_search_job(run_id: str, deps: JobDeps) -> None:
     with store.lock:
         state.items = []
         state.search_errors = []
+        state.filtered_out = 0
         state.error = state.error_hint = ""
     try:
         candidates = _search(state, scene, regions, deps, update, lg)
@@ -101,12 +112,14 @@ def run_search_job(run_id: str, deps: JobDeps) -> None:
 
 
 def _search(state: RunState, scene: Scene, regions: RegionsState, deps: JobDeps, update, lg) -> list[WallItem]:
-    queries = build_queries(scene, regions)
+    queries = build_queries(scene, regions, deps.settings)
+    rental = deps.settings.site_filter == "rental"
     if not queries:
         raise ValueError("没有可搜索的关键词：请勾选至少一个有关键词的地区。")
     update(status="searching", stage=f"图片搜索（{deps.engine.name}）", progress=0.0, search_count=len(queries))
     found: list[WallItem] = []
     errors = []
+    filtered = 0
     for i, q in enumerate(queries):
         _check(deps)
         try:
@@ -115,8 +128,10 @@ def _search(state: RunState, scene: Scene, regions: RegionsState, deps: JobDeps,
             errors.append(f"「{q.text}」：{e}")
             log_json(lg, "search_error", query=q.text, error=str(e))
             hits = []
-        log_json(lg, "search", query=q.text, region=q.search_region, hits=len(hits))
-        for h in hits:
+        kept = [h for h in hits if is_rental_url(h.page_url)] if rental else hits
+        filtered += len(hits) - len(kept)
+        log_json(lg, "search", query=q.text, region=q.search_region, hits=len(hits), kept=len(kept))
+        for h in kept:
             found.append(
                 WallItem(
                     id="",
@@ -132,12 +147,15 @@ def _search(state: RunState, scene: Scene, regions: RegionsState, deps: JobDeps,
                     height=h.height,
                 )
             )
-        update(progress=(i + 1) / len(queries) * 0.3, search_errors=list(errors))
+        update(progress=(i + 1) / len(queries) * 0.3, search_errors=list(errors), filtered_out=filtered)
     candidates = images.round_robin_items(images.dedupe_urls(found))
     for n, it in enumerate(candidates):
         it.id = f"i{n:04d}"
     if not candidates:
-        raise ValueError("图片搜索没有结果" + (f"（{len(errors)} 次搜索失败，见上方错误）" if errors else ""))
+        detail = f"{len(errors)} 次搜索失败，见上方错误" if errors else ""
+        if filtered:
+            detail = (detail + "；" if detail else "") + f"{filtered} 张来自非短租 / 酒店网站，已过滤（可设 SITE_FILTER=off）"
+        raise ValueError("图片搜索没有可用结果" + (f"（{detail}）" if detail else ""))
     return candidates
 
 
