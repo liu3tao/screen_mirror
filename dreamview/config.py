@@ -96,7 +96,7 @@ class Settings:
     media_res_audit: str = "medium"
     thinking_level: str = "minimal"
     thinking_level_regions: str = "low"
-    image_search: str = "ddgs"  # ddgs | brave
+    image_search: str = "auto"  # auto（有 BRAVE_API_KEY 用 Brave，否则 ddgs）| brave | ddgs
     site_filter: str = "rental"  # rental：只搜、只留短租 / 酒店网站；off：不限
     sites_per_region: int = 4
     ddgs_backend: str = "bing"  # ddgs 内部引擎：bing | duckduckgo | bing,duckduckgo（DuckDuckGo 常返回 403）

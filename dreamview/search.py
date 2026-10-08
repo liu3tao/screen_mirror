@@ -24,6 +24,7 @@ class ImageHit:
 
 class ImageSearch(Protocol):
     name: str
+    supports_site: bool  # 图片搜索是否遵守 site: 运算符（2026-10 实测：Brave 是，Bing 否）
 
     def search(self, query: str, region: str, max_results: int) -> list[ImageHit]: ...
 
@@ -64,6 +65,7 @@ class DdgsSearch:
         self._ddgs = ddgs
         self.backend = backend
         self.name = ddgs_source_name(backend)
+        self.supports_site = False  # 实测 Bing 图片忽略 site:；DuckDuckGo 返回 403，未能测
 
     def search(self, query: str, region: str, max_results: int) -> list[ImageHit]:
         rows = self._ddgs.images(
@@ -123,6 +125,7 @@ def brave_params(region: str) -> dict[str, str]:
 
 class BraveSearch:
     name = "Brave"
+    supports_site = True  # 实测 site:booking.com / site:airbnb.com 结果 100% 来自该站
     URL = "https://api.search.brave.com/res/v1/images/search"
 
     def __init__(self, api_key: str, client: httpx.Client | None = None):
@@ -158,14 +161,25 @@ class BraveSearch:
         return hits
 
 
+def resolve_image_search(settings: Settings) -> str:
+    """auto（默认）：有 BRAVE_API_KEY 用 Brave，否则 ddgs。"""
+    if settings.image_search == "auto":
+        return "brave" if settings.brave_api_key else "ddgs"
+    return settings.image_search
+
+
 def make_search(settings: Settings) -> ImageSearch:
-    if settings.image_search == "brave":
+    if resolve_image_search(settings) == "brave":
         return BraveSearch(settings.brave_api_key)
     return DdgsSearch(backend=settings.ddgs_backend)
 
 
 def image_source_name(settings: Settings) -> str:
-    return "Brave" if settings.image_search == "brave" else ddgs_source_name(settings.ddgs_backend)
+    return "Brave" if resolve_image_search(settings) == "brave" else ddgs_source_name(settings.ddgs_backend)
+
+
+def engine_supports_site(settings: Settings) -> bool:
+    return resolve_image_search(settings) == "brave"
 
 
 class Throttle:

@@ -172,12 +172,19 @@ def test_make_search_uses_settings():
     from dreamview.config import Settings
     from dreamview.search import image_source_name, make_search
 
+    from dreamview.search import engine_supports_site, resolve_image_search
+
     s = Settings(ddgs_backend="duckduckgo")
     eng = make_search(s)
-    assert isinstance(eng, DdgsSearch) and eng.backend == "duckduckgo"
+    assert isinstance(eng, DdgsSearch) and eng.backend == "duckduckgo" and eng.supports_site is False
     assert image_source_name(s) == "DuckDuckGo"
-    assert image_source_name(Settings()) == "Bing"
-    assert image_source_name(Settings(image_search="brave", brave_api_key="k")) == "Brave"
+    # auto：无 Key → ddgs（Bing），有 Key → Brave
+    assert resolve_image_search(Settings()) == "ddgs" and image_source_name(Settings()) == "Bing"
+    with_key = Settings(brave_api_key="k")
+    assert resolve_image_search(with_key) == "brave" and isinstance(make_search(with_key), BraveSearch)
+    assert engine_supports_site(with_key) and not engine_supports_site(Settings())
+    # 显式 ddgs 时即使有 Key 也用 ddgs
+    assert resolve_image_search(Settings(image_search="ddgs", brave_api_key="k")) == "ddgs"
 
 
 def test_every_rental_site_is_classified_as_rental():
@@ -234,3 +241,5 @@ def test_build_queries_rental_rotates_keywords():
     assert [q.text for q in qs] == ["k1 site:airbnb.com", "k2 site:booking.com", "k1 site:vrbo.com"]
     off = build_queries(Scene(), regions, Settings(site_filter="off"))
     assert [q.text for q in off] == ["k1", "k2"]
+    no_site = build_queries(Scene(), regions, Settings(), supports_site=False)
+    assert [q.text for q in no_site] == ["k1", "k2"]

@@ -15,7 +15,7 @@ from .config import SCOPE_TAGS, STATIC_DIR, Settings
 from .llm import CallLimitExceeded, Meter, ModelBackend, ModelError, make_backend
 from .pipeline import JobDeps, build_queries, make_deps_factory, run_search_job
 from .schemas import Region, RegionsState, Scene
-from .search import ImageSearch, image_source_name, make_search
+from .search import ImageSearch, engine_supports_site, image_source_name, make_search, resolve_image_search
 from .store import RunNotFound, RunStore, log_json
 
 ACTIVE_STATUSES = {"searching", "downloading", "scoring"}
@@ -92,9 +92,10 @@ def create_app(
     def config():
         return {
             "scope_tags": SCOPE_TAGS,
-            "image_search": s.image_search,
+            "image_search": resolve_image_search(s),
             "image_source": image_source_name(s),
             "site_filter": s.site_filter,
+            "site_queries": engine_supports_site(s),
             "sites_per_region": s.sites_per_region,
             "max_images": s.max_images,
             "score_batch_size": s.score_batch_size,
@@ -194,10 +195,10 @@ def create_app(
     @app.post("/api/runs/{run_id}/search", status_code=202)
     def start_search(run_id: str):
         store.dir(run_id)
-        queries = build_queries(store.load_scene(run_id), store.load_regions(run_id), s)
+        deps = deps_factory()
+        queries = build_queries(store.load_scene(run_id), store.load_regions(run_id), s, deps.engine.supports_site)
         if not queries:
             raise HTTPException(400, "没有可搜索的关键词：请勾选至少一个有关键词的地区。")
-        deps = deps_factory()
         with running_lock:
             if run_id in running:
                 raise HTTPException(409, "该 run 正在运行")
