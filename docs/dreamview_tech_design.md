@@ -1,6 +1,6 @@
-# 窗景找房：技术设计文档 v0.13
+# 窗景找房：技术设计文档 v0.14
 
-- 状态：M1 已实现并合并（v0.10）；v0.11 增加模型后端切换（附录 H）；v0.12 删除通用关键词、③ 在勾选地区后显示（附录 I）；v0.13 单栏布局、只搜短租 / 酒店网站（附录 J）
+- 状态：M1 已实现并合并（v0.10）；v0.11 增加模型后端切换（附录 H）；v0.12 删除通用关键词、③ 在勾选地区后显示（附录 I）；v0.13 单栏布局、只搜短租 / 酒店网站（附录 J）；v0.14 有 Brave Key 时默认用 Brave（附录 J）
 - 定位：单人业余项目。能用文件不用数据库；能用云端开关不自己写计费；前端单页。
 - 平台：macOS · Python 3.11+ · Chrome（运行）；Claude Code 云端会话（开发）
 - 外部服务：Gemini API（付费层，含 Google Search grounding）；图片搜索 `ddgs`（默认）/ Brave（M1 实测对比）
@@ -190,9 +190,9 @@ flowchart TD
 
 | 选项 | 费用 | 结论 |
 |---|---|---|
-| `ddgs`（`DDGS_BACKEND=bing`，默认） | 0，免注册 | 默认。非官方；经 ddgs 调 Bing 图片，忽略区域参数（关键词本身为当地语言）；请求间隔 1–2 s |
+| `ddgs`（`DDGS_BACKEND=bing`） | 0，免注册 | 无 Brave Key 时使用；不支持 site:，只能事后过滤。非官方；经 ddgs 调 Bing 图片，忽略区域参数（关键词本身为当地语言）；请求间隔 1–2 s |
 | `ddgs`（`DDGS_BACKEND=duckduckgo`） | 0，免注册 | 2026-10 本机实测 `i.js` 返回 403（反爬），不再作默认；可设 `bing,duckduckgo` 合并 |
-| Brave Search API | 每月赠 5 USD ≈ 1,000 次；需绑卡；可锁 5 USD | 同签名第二实现，`.env` 切换 |
+| Brave Search API | 每月赠 5 USD ≈ 1,000 次；需绑卡；可锁 5 USD | 有 `BRAVE_API_KEY` 时默认（`IMAGE_SEARCH=auto`）；支持 site:，「只搜短租 / 酒店网站」依赖它 |
 
 - 搜索次数 = 勾选地区数 × 4（`SITES_PER_REGION`；`SITE_FILTER=off` 时为 × 2–3）。缩小范围、少勾地区即直接减少搜索、下载与打分量。
 - 每个地区的查询带该地区的语言/国家参数（`ddgs` 的 `region` 如 `cn-zh`、`jp-jp`、`it-it`；Brave 的 `country` + `search_lang`），提高本地站点结果比例。地区 → 参数的映射由找地区步骤一并返回，缺省 `wt-wt`。
@@ -445,4 +445,4 @@ flowchart TD
 |---|---|---|
 | 全页单栏、居中 | 双栏时 ③ 照片墙出现在屏幕外，难以发现 | ② 场景 → 搜索范围 → 候选地区 → ③ 照片墙 自上而下 |
 | 只搜、只留短租 / 酒店网站（`SITE_FILTER=rental`，默认） | 搜图结果混入不动产、泛内容网站，不可租住 | `config.RENTAL_SITES` 按国家列出网站（日本：Airbnb、Booking、じゃらん、楽天トラベル…；中国大陆：途家、携程…）；每地区 4 条「关键词 site:域名」查询；结果按来源规则只留「房源」；UI 显示过滤数量；种草帖（小红书等）不再出现在照片墙 |
-| `site:` 在图片搜索中是否生效未经核实 | Bing / Brave 文档未确认 | 结果过滤保证只留租住网站；联网测试 `test_site_operator_is_honored` 打印各引擎的命中比例，本机运行后据此调整 |
+| `site:` 在图片搜索中是否生效（2026-10-08 本机实测） | Brave：`site:booking.com` / `site:airbnb.com` 各 30/30 来自该站；Bing（经 ddgs）：0/12，12 条中仅 2 条为租住网站 | v0.14：`IMAGE_SEARCH=auto`（默认）有 `BRAVE_API_KEY` 即用 Brave；引擎标记 `supports_site`，不支持时不发 site 查询（避免浪费），改发普通关键词后过滤，UI 提示结果可能很少；联网测试中 Bing / DuckDuckGo 的 site 用例标为预期失败（xfail） |

@@ -23,7 +23,7 @@ const ACTIVE = ['searching', 'downloading', 'scoring'];
 
 function dreamview() {
   return {
-    config: { scope_tags: [], image_search: 'ddgs', image_source: '', site_filter: 'rental', sites_per_region: 4 },
+    config: { scope_tags: [], image_search: 'ddgs', image_source: '', site_filter: 'rental', site_queries: true, sites_per_region: 4 },
     runs: [],
     runId: '',
     state: null,
@@ -161,7 +161,7 @@ function dreamview() {
     estimatedSearches() {
       let n = 0;
       if (this.regions) {
-        const rental = this.config.site_filter === 'rental';
+        const rental = this.config.site_filter === 'rental' && this.config.site_queries;
         for (const r of this.regions.regions) {
           if (!r.selected || !r.keywords.length) continue;
           n += rental ? this.config.sites_per_region : Math.min(3, r.keywords.length);

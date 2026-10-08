@@ -54,4 +54,7 @@ def test_site_operator_is_honored(engine_name, site):
     on_site = sum(site.split(".")[0] in (urlparse(h.page_url).hostname or "") for h in hits)
     rental = sum(is_rental_url(h.page_url) for h in hits)
     print(f"\n[{engine_name}] site:{site} → {len(hits)} 条，{on_site} 条来自该站，{rental} 条为租住网站")
+    if engine_name != "brave":
+        # 2026-10 实测 Bing 图片忽略 site:（0/12）；程序对其不发 site 查询（supports_site=False）
+        pytest.xfail(f"{engine_name} 图片搜索不支持 site:（已知）：{on_site}/{len(hits)} 来自该站")
     assert rental >= 3, f"site:{site} 几乎无效：{len(hits)} 条中只有 {rental} 条来自租住网站"

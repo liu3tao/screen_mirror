@@ -28,10 +28,13 @@ class Query:
     search_region: str
 
 
-def build_queries(scene: Scene, regions: RegionsState, settings: Settings | None = None) -> list[Query]:
-    """site_filter=off：勾选地区 × 2–3 条关键词。
-    site_filter=rental（默认）：勾选地区 × N 个租住网站，每条为「关键词 site:域名」，关键词轮换使用。"""
-    rental = settings is None or settings.site_filter == "rental"
+def build_queries(
+    scene: Scene, regions: RegionsState, settings: Settings | None = None, supports_site: bool = True
+) -> list[Query]:
+    """普通查询：勾选地区 × 2–3 条关键词（site_filter=off，或引擎不支持 site:）。
+    site 查询：site_filter=rental 且引擎支持 site: 时，勾选地区 × N 个租住网站，「关键词 site:域名」，关键词轮换。
+    是否过滤结果由 site_filter 决定，与此无关。"""
+    rental = (settings is None or settings.site_filter == "rental") and supports_site
     n_sites = settings.sites_per_region if settings else Settings.sites_per_region
     qs = []
     for r in regions.regions:
@@ -112,7 +115,7 @@ def run_search_job(run_id: str, deps: JobDeps) -> None:
 
 
 def _search(state: RunState, scene: Scene, regions: RegionsState, deps: JobDeps, update, lg) -> list[WallItem]:
-    queries = build_queries(scene, regions, deps.settings)
+    queries = build_queries(scene, regions, deps.settings, deps.engine.supports_site)
     rental = deps.settings.site_filter == "rental"
     if not queries:
         raise ValueError("没有可搜索的关键词：请勾选至少一个有关键词的地区。")

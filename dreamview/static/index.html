@@ -146,6 +146,9 @@
     <span class="muted" x-text="`已勾选 ${selectedCount()} 个地区，预计搜索 ${estimatedSearches()} 次${config.site_filter === 'rental' ? '（只搜短租 / 酒店网站）' : ''}`"></span>
     <span class="search-hint" x-show="searchHint()" x-text="searchHint()"></span>
   </div>
+  <div class="warning" x-show="config.site_filter === 'rental' && !config.site_queries">
+    当前图片引擎（<span x-text="config.image_source"></span>）不支持限定网站，只能搜完再过滤，留下的短租 / 酒店图片可能很少。建议在 .env 填 BRAVE_API_KEY（会自动改用 Brave）。
+  </div>
   <template x-if="state && state.status !== 'created' && state.status !== 'analyzed'">
     <div>
       <div class="progress"><div :style="`width:${Math.round((state.progress || 0) * 100)}%`"></div></div>

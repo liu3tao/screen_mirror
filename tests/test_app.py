@@ -63,6 +63,7 @@ class FakeGemini(Gemini):
 
 class FakeEngine:
     name = "Fake"
+    supports_site = True  # 模拟 Brave
 
     def __init__(self):
         self.queries = []
@@ -428,3 +429,35 @@ def test_all_results_filtered_gives_clear_error(tmp_settings):
     client.post(f"/api/runs/{run_id}/search")
     st = client.get(f"/api/runs/{run_id}").json()["state"]
     assert st["status"] == "error" and "SITE_FILTER=off" in st["error"] and st["filtered_out"] == 20
+
+
+def test_engine_without_site_support_uses_plain_queries_then_filters(tmp_settings):
+    """Bing 不认 site:：不发 site 查询（浪费），改发普通关键词，结果仍只留租住网站。"""
+
+    class BingLike(FakeEngine):
+        supports_site = False
+
+        def search(self, query, region, max_results):
+            hits = super().search(query, region, max_results)
+            n = len(self.queries)
+            return hits + [ImageHit(page_url=f"https://suumo.jp/{n}", thumb_url=f"https://thumbs.test/9/{n}.png")]
+
+    gem, engine, holder = FakeGemini(tmp_settings), BingLike(), {}
+
+    def deps_factory():
+        http = httpx.Client(transport=thumb_transport(), trust_env=False)
+        return JobDeps(tmp_settings, holder["app"].state.store, gem, engine, http, Throttle(0))
+
+    app = create_app(tmp_settings, model=gem, deps_factory=deps_factory, run_jobs_inline=True)
+    holder["app"] = app
+    client = TestClient(app)
+    run_id = upload(client)["state"]["id"]
+    regions = client.post(f"/api/runs/{run_id}/regions", json={"scopes": []}).json()["regions"]
+    regions[0]["selected"] = True
+    client.put(f"/api/runs/{run_id}/regions", json={"regions": regions})
+    assert client.post(f"/api/runs/{run_id}/search").json()["queries"] == 2
+    assert engine.queries == [("熱海 オーシャンビュー", "jp-jp"), ("熱海 民泊", "jp-jp")]
+    st = client.get(f"/api/runs/{run_id}").json()["state"]
+    assert st["status"] == "done"
+    assert all(it["source_type"] == "房源" for it in st["items"])
+    assert st["filtered_out"] == 2 * 3  # 每次：suumo、dup.test、broken.test
