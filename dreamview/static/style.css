@@ -28,8 +28,8 @@ label { display: block; margin: 8px 0; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .grow { flex: 1; min-width: 160px; }
 .step { padding: 8px 16px 16px; border-bottom: 1px solid var(--line); }
-.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-@media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+main { margin: 0 auto; }
+.block + .block { margin-top: 16px; padding-top: 8px; border-top: 1px dashed var(--line); }
 .error, .warning { margin: 8px 16px; padding: 8px 12px; border-radius: 6px; }
 .error { background: var(--err-bg); color: var(--err); }
 .error.toast { position: fixed; z-index: 10; top: 56px; left: 50%; transform: translateX(-50%); width: min(720px, calc(100% - 32px)); margin: 0; box-shadow: 0 4px 16px rgba(0, 0, 0, .15); }

@@ -129,6 +129,7 @@ class RunState(BaseModel):
     error_hint: str = ""
     warnings: list[str] = []
     search_count: int = 0
+    filtered_out: int = 0  # 非短租 / 酒店网站、被过滤的搜索结果数
     search_errors: list[str] = []
     items: list[WallItem] = []
     usage: Usage = Usage()
